@@ -55,14 +55,24 @@ export function resolveKakaoAccount(
 
   const config = validationResult.data;
 
+  // Determine token source
+  let tokenSource: "config" | "env" | "session" | "none" = "none";
+  if (config.sessionToken) {
+    tokenSource = "session";
+  } else if (config.relayToken) {
+    tokenSource = "config";
+  } else if (process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN) {
+    tokenSource = "env";
+  }
+
   return {
     accountId,
     config,
     enabled: config.enabled,
     name: (rawAccountConfig as Record<string, unknown>).name as string | undefined,
-    channelId: config.channelId,
+    channelId: config.channelId, // May be undefined for relay mode
     mode: config.mode,
-    tokenSource: config.relayToken ? "config" : "none",
+    tokenSource,
   };
 }
 

@@ -57,21 +57,32 @@ describe("Config Schema", () => {
       }
     });
 
-    it("should reject missing channelId", () => {
+    it("should reject missing channelId in direct mode", () => {
       const config = {
         enabled: true,
         mode: "direct",
       };
-      
+
       const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
+    });
+
+    it("should allow missing channelId in relay mode", () => {
+      const config = {
+        enabled: true,
+        mode: "relay",
+      };
+
+      const result = KakaoAccountConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
     });
 
     it("should reject empty channelId", () => {
       const config = {
         channelId: "",
+        mode: "direct",
       };
-      
+
       const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });

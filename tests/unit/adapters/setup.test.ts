@@ -189,7 +189,7 @@ describe("SetupAdapter", () => {
   });
 
   describe("validateInput", () => {
-    it("should return error when channelId is missing", () => {
+    it("should return error when channelId is missing in direct mode", () => {
       const input: SetupInput = {
         mode: "direct",
         publicWebhookUrl: "https://example.com/webhook",
@@ -200,10 +200,10 @@ describe("SetupAdapter", () => {
         input,
       });
 
-      expect(error).toBe("channelId is required");
+      expect(error).toBe("channelId is required for direct mode");
     });
 
-    it("should return error when channelId is empty string", () => {
+    it("should return error when channelId is empty string in direct mode", () => {
       const input: SetupInput = {
         channelId: "",
         mode: "direct",
@@ -215,12 +215,11 @@ describe("SetupAdapter", () => {
         input,
       });
 
-      expect(error).toBe("channelId is required");
+      expect(error).toBe("channelId is required for direct mode");
     });
 
-    it("should return error when relay mode missing relayUrl", () => {
+    it("should allow relay mode without relayUrl (uses default)", () => {
       const input: SetupInput = {
-        channelId: "ch123",
         mode: "relay",
         relayToken: "token123",
       };
@@ -230,14 +229,12 @@ describe("SetupAdapter", () => {
         input,
       });
 
-      expect(error).toBe("relayUrl is required for relay mode");
+      expect(error).toBeNull();
     });
 
-    it("should return error when relay mode missing relayToken", () => {
+    it("should allow relay mode without relayToken (auto-creates session)", () => {
       const input: SetupInput = {
-        channelId: "ch123",
         mode: "relay",
-        relayUrl: "https://relay.example.com",
       };
 
       const error = setupAdapter.validateInput({
@@ -245,7 +242,21 @@ describe("SetupAdapter", () => {
         input,
       });
 
-      expect(error).toBe("relayToken is required for relay mode");
+      expect(error).toBeNull();
+    });
+
+    it("should allow relay mode without channelId", () => {
+      const input: SetupInput = {
+        mode: "relay",
+        relayToken: "token123",
+      };
+
+      const error = setupAdapter.validateInput({
+        accountId: "default",
+        input,
+      });
+
+      expect(error).toBeNull();
     });
 
     it("should return error when direct mode missing publicWebhookUrl", () => {

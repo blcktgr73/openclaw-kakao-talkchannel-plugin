@@ -1,26 +1,31 @@
 /**
  * Zod schemas for Kakao plugin configuration validation
- * 
+ *
  * Reference: docs/implementation-plan.md lines 167-212
  */
 import { z } from "zod";
 
+const DEFAULT_RELAY_URL = "https://k.tess.dev/";
+
 /**
  * Kakao account configuration schema
+ *
+ * Note: channelId is optional for relay mode (pairing-based identification)
  */
 export const KakaoAccountConfigSchema = z.object({
   // Basic settings
   enabled: z.boolean().default(true),
-  channelId: z.string().min(1, "channelId는 필수입니다"),
+  channelId: z.string().min(1, "channelId는 필수입니다").optional(),
   mode: z.enum(["direct", "relay"]).default("direct"),
-  
+
   // Direct mode settings
   publicWebhookUrl: z.string().url("유효한 URL이어야 합니다").optional(),
   webhookPath: z.string().default("/kakao-talkchannel/webhook"),
-  
+
   // Relay mode settings (SSE)
-  relayUrl: z.string().url("유효한 URL이어야 합니다").optional(),
+  relayUrl: z.string().url("유효한 URL이어야 합니다").default(DEFAULT_RELAY_URL),
   relayToken: z.string().optional(),
+  sessionToken: z.string().optional(),
   reconnectDelayMs: z.number()
     .min(500, "reconnectDelayMs는 최소 500ms 이상이어야 합니다")
     .max(10000, "reconnectDelayMs는 최대 10000ms 이하여야 합니다")
@@ -29,7 +34,7 @@ export const KakaoAccountConfigSchema = z.object({
     .min(5000, "maxReconnectDelayMs는 최소 5000ms 이상이어야 합니다")
     .max(60000, "maxReconnectDelayMs는 최대 60000ms 이하여야 합니다")
     .default(30000),
-  
+
   // Common settings
   dmPolicy: z.enum(["pairing", "allowlist", "open", "disabled"]).default("pairing"),
   allowFrom: z.array(z.string()).optional(),
@@ -37,7 +42,10 @@ export const KakaoAccountConfigSchema = z.object({
     .min(5000, "callbackTimeoutMs는 최소 5000ms 이상이어야 합니다")
     .max(55000, "callbackTimeoutMs는 최대 55000ms 이하여야 합니다")
     .default(55000),
-});
+}).refine(
+  (data) => data.mode === "relay" || data.channelId,
+  { message: "channelId는 direct 모드에서 필수입니다", path: ["channelId"] }
+);
 
 /**
  * Kakao channel configuration schema (with accounts)

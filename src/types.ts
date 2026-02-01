@@ -136,19 +136,20 @@ export type KakaoConnectionMode = "direct" | "relay";
 
 export interface KakaoAccountConfig {
   enabled: boolean;
-  channelId: string;
+  channelId?: string; // Optional for relay mode
   mode: KakaoConnectionMode;
-  
+
   // Direct mode settings
   publicWebhookUrl?: string;
   webhookPath?: string;
-  
+
   // Relay mode settings (SSE)
   relayUrl?: string;
   relayToken?: string;
+  sessionToken?: string; // Auto-generated session token
   reconnectDelayMs?: number;
   maxReconnectDelayMs?: number;
-  
+
   // Common settings
   dmPolicy: KakaoDmPolicy;
   allowFrom?: string[];
@@ -160,9 +161,9 @@ export interface ResolvedKakaoAccount {
   config: KakaoAccountConfig;
   enabled: boolean;
   name?: string;
-  channelId: string;
+  channelId?: string; // Optional for relay mode
   mode: KakaoConnectionMode;
-  tokenSource?: "config" | "env" | "none";
+  tokenSource?: "config" | "env" | "session" | "none";
 }
 
 // ============================================================================
@@ -182,7 +183,7 @@ export interface InboundMessage {
   callbackExpiresAt: number;
 }
 
-export type SSEEventType = "message" | "ping" | "error";
+export type SSEEventType = "message" | "ping" | "error" | "pairing_complete" | "pairing_expired";
 
 export interface SSEMessageEvent {
   event: "message";
@@ -205,11 +206,34 @@ export interface SSEErrorEvent {
   id?: string;
 }
 
-export type SSEEvent = SSEMessageEvent | SSEPingEvent | SSEErrorEvent;
+export interface SSEPairingCompleteEvent {
+  event: "pairing_complete";
+  data: {
+    kakaoUserId: string;
+    pairedAt: string;
+  };
+  id?: string;
+}
+
+export interface SSEPairingExpiredEvent {
+  event: "pairing_expired";
+  data: {
+    reason: string;
+  };
+  id?: string;
+}
+
+export type SSEEvent =
+  | SSEMessageEvent
+  | SSEPingEvent
+  | SSEErrorEvent
+  | SSEPairingCompleteEvent
+  | SSEPairingExpiredEvent;
 
 export interface SSEClientConfig {
   relayUrl: string;
-  relayToken: string;
+  relayToken?: string; // Legacy token (environment variable or config)
+  sessionToken?: string; // Auto-generated session token
   reconnectDelayMs?: number;
   maxReconnectDelayMs?: number;
   timeoutMs?: number;

@@ -12,6 +12,12 @@ vi.mock("../../../src/runtime.js", () => ({
   }),
 }));
 
+// Mock the session module
+vi.mock("../../../src/relay/session.js", () => ({
+  createSession: vi.fn(),
+  DEFAULT_RELAY_URL: "https://k.tess.dev/",
+}));
+
 describe("Relay Stream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -23,44 +29,182 @@ describe("Relay Stream", () => {
       expect(typeof startRelayStream).toBe("function");
     });
 
-    it("should throw error when relayUrl is missing", async () => {
+    it("should use default relayUrl when not specified", async () => {
       const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const { createSession } = await import("../../../src/relay/session.js");
+
+      // Mock createSession to return success
+      vi.mocked(createSession).mockResolvedValue({
+        ok: true,
+        data: {
+          sessionToken: "test_session_token",
+          pairingCode: "ABCD-1234",
+          expiresIn: 300,
+          status: "pending_pairing",
+        },
+      });
 
       const mockAccount: ResolvedKakaoAccount = {
         accountId: "test",
         enabled: true,
-        channelId: "ch1",
         mode: "relay",
         config: {
           enabled: true,
-          channelId: "ch1",
           mode: "relay",
-          relayToken: "token",
           dmPolicy: "open",
         },
       };
 
       const controller = new AbortController();
       const mockOnMessage = vi.fn();
+      const mockOnPairingRequired = vi.fn();
 
-      await expect(
-        startRelayStream(mockAccount, mockOnMessage, controller.signal)
-      ).rejects.toThrow("relayUrl and relayToken");
+      // Start the stream (will abort immediately)
+      controller.abort();
+
+      try {
+        await startRelayStream(
+          mockAccount,
+          mockOnMessage,
+          controller.signal,
+          {},
+          { onPairingRequired: mockOnPairingRequired }
+        );
+      } catch {
+        // Expected to throw due to abort
+      }
+
+      // Verify createSession was called with default URL
+      expect(createSession).toHaveBeenCalledWith("https://k.tess.dev/");
     });
 
-    it("should throw error when relayToken is missing", async () => {
+    it("should call onPairingRequired callback when creating new session", async () => {
       const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const { createSession } = await import("../../../src/relay/session.js");
+
+      vi.mocked(createSession).mockResolvedValue({
+        ok: true,
+        data: {
+          sessionToken: "test_session_token",
+          pairingCode: "ABCD-1234",
+          expiresIn: 300,
+          status: "pending_pairing",
+        },
+      });
 
       const mockAccount: ResolvedKakaoAccount = {
         accountId: "test",
         enabled: true,
-        channelId: "ch1",
         mode: "relay",
         config: {
           enabled: true,
-          channelId: "ch1",
           mode: "relay",
-          relayUrl: "https://relay.example.com",
+          dmPolicy: "open",
+        },
+      };
+
+      const controller = new AbortController();
+      const mockOnMessage = vi.fn();
+      const mockOnPairingRequired = vi.fn();
+
+      controller.abort();
+
+      try {
+        await startRelayStream(
+          mockAccount,
+          mockOnMessage,
+          controller.signal,
+          {},
+          { onPairingRequired: mockOnPairingRequired }
+        );
+      } catch {
+        // Expected
+      }
+
+      expect(mockOnPairingRequired).toHaveBeenCalledWith("ABCD-1234", 300);
+    });
+
+    it("should use sessionToken from config if available", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const { createSession } = await import("../../../src/relay/session.js");
+
+      const mockAccount: ResolvedKakaoAccount = {
+        accountId: "test",
+        enabled: true,
+        mode: "relay",
+        config: {
+          enabled: true,
+          mode: "relay",
+          sessionToken: "existing_session_token",
+          dmPolicy: "open",
+        },
+      };
+
+      const controller = new AbortController();
+      const mockOnMessage = vi.fn();
+
+      controller.abort();
+
+      try {
+        await startRelayStream(mockAccount, mockOnMessage, controller.signal);
+      } catch {
+        // Expected
+      }
+
+      // Should not call createSession when sessionToken exists
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("should use relayToken from config if available", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const { createSession } = await import("../../../src/relay/session.js");
+
+      const mockAccount: ResolvedKakaoAccount = {
+        accountId: "test",
+        enabled: true,
+        mode: "relay",
+        config: {
+          enabled: true,
+          mode: "relay",
+          relayToken: "config_relay_token",
+          dmPolicy: "open",
+        },
+      };
+
+      const controller = new AbortController();
+      const mockOnMessage = vi.fn();
+
+      controller.abort();
+
+      try {
+        await startRelayStream(mockAccount, mockOnMessage, controller.signal);
+      } catch {
+        // Expected
+      }
+
+      // Should not call createSession when relayToken exists
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it("should throw error when session creation fails", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const { createSession } = await import("../../../src/relay/session.js");
+
+      vi.mocked(createSession).mockResolvedValue({
+        ok: false,
+        error: {
+          code: "NETWORK_ERROR",
+          message: "Connection refused",
+        },
+      });
+
+      const mockAccount: ResolvedKakaoAccount = {
+        accountId: "test",
+        enabled: true,
+        mode: "relay",
+        config: {
+          enabled: true,
+          mode: "relay",
           dmPolicy: "open",
         },
       };
@@ -70,7 +214,7 @@ describe("Relay Stream", () => {
 
       await expect(
         startRelayStream(mockAccount, mockOnMessage, controller.signal)
-      ).rejects.toThrow("relayUrl and relayToken");
+      ).rejects.toThrow("Failed to create session: Connection refused");
     });
   });
 

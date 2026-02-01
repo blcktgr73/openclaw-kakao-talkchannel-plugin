@@ -9,6 +9,8 @@ export interface SSEHandlers {
   onError?: (error: Error) => void;
   onReconnect?: (attempt: number) => void;
   onConnected?: () => void;
+  onPairingComplete?: (data: { kakaoUserId: string; pairedAt: string }) => void;
+  onPairingExpired?: (reason: string) => void;
 }
 
 export function calculateReconnectDelay(
@@ -91,8 +93,14 @@ export async function connectSSE(
     const timeout = createTimeoutSignal(timeoutMs, abortSignal);
 
     try {
+      // Use sessionToken if available, otherwise fall back to relayToken
+      const token = config.sessionToken ?? config.relayToken;
+      if (!token) {
+        throw new Error("SSE connection requires sessionToken or relayToken");
+      }
+
       const headers: Record<string, string> = {
-        Authorization: `Bearer ${config.relayToken}`,
+        Authorization: `Bearer ${token}`,
         Accept: "text/event-stream",
         "Cache-Control": "no-cache",
       };
@@ -101,7 +109,9 @@ export async function connectSSE(
         headers["Last-Event-ID"] = lastEventId;
       }
 
-      const response = await fetch(`${config.relayUrl}/messages/stream`, {
+      // Normalize URL and use v1/events endpoint
+      const baseUrl = config.relayUrl.endsWith("/") ? config.relayUrl : `${config.relayUrl}/`;
+      const response = await fetch(`${baseUrl}v1/events`, {
         method: "GET",
         headers,
         signal: timeout.signal,
@@ -146,6 +156,10 @@ export async function connectSSE(
             await handlers.onMessage(event.data);
           } else if (event.event === "error") {
             handlers.onError?.(new Error(event.data.message));
+          } else if (event.event === "pairing_complete") {
+            handlers.onPairingComplete?.(event.data);
+          } else if (event.event === "pairing_expired") {
+            handlers.onPairingExpired?.(event.data.reason);
           }
         }
       }

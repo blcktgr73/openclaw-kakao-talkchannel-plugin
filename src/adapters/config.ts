@@ -84,6 +84,16 @@ export const configAdapter: ChannelConfigAdapter<ResolvedKakaoAccount> = {
   },
 
   isConfigured: (account) => {
+    // For relay mode: configured if token available or can auto-create session
+    if (account.mode === "relay") {
+      return Boolean(
+        account.config.sessionToken ||
+        account.config.relayToken ||
+        process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
+        true // Can always auto-create session
+      );
+    }
+    // For direct mode: channelId is required
     return Boolean(account.config.channelId);
   },
 
