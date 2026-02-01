@@ -20,11 +20,13 @@ Test TalkChannel: http://pf.kakao.com/_scexbC
 ```yaml
 channels:
   kakao-talkchannel:
-    enabled: true
-    channelId: "@example"      # For identification (optional)
-    relayUrl: "https://..."    # Default: https://k.tess.dev/
-    relayToken: "..."          # Or use OPENCLAW_TALKCHANNEL_RELAY_TOKEN env
-    dmPolicy: pairing          # pairing | allowlist | open | disabled
+    accounts:
+      default:
+        enabled: true
+        channelId: "@example"      # For identification (optional)
+        relayUrl: "https://..."    # Default: https://k.tess.dev/
+        relayToken: "..."          # Or use OPENCLAW_TALKCHANNEL_RELAY_TOKEN env
+        dmPolicy: pairing          # pairing | allowlist | open | disabled
 ```
 
 ## Kakao Open Builder Setup

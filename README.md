@@ -20,11 +20,13 @@
 ```yaml
 channels:
   kakao-talkchannel:
-    enabled: true
-    channelId: "@example"      # 채널 식별용 (선택)
-    relayUrl: "https://..."    # 기본: https://k.tess.dev/
-    relayToken: "..."          # 환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능
-    dmPolicy: pairing          # pairing | allowlist | open | disabled
+    accounts:
+      default:
+        enabled: true
+        channelId: "@example"      # 채널 식별용 (선택)
+        relayUrl: "https://..."    # 기본: https://k.tess.dev/
+        relayToken: "..."          # 환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능
+        dmPolicy: pairing          # pairing | allowlist | open | disabled
 ```
 
 ## 카카오 오픈빌더 설정

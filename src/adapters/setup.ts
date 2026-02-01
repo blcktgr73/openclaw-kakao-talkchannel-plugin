@@ -14,15 +14,15 @@ export interface SetupInput {
 
 type ConfigObject = Record<string, unknown>;
 
-function getKakaoConfig(cfg: unknown): {
+function getKakaoTalkchannelConfig(cfg: unknown): {
   config: ConfigObject;
   channels: ConfigObject;
-  kakao: ConfigObject;
+  talkchannelConfig: ConfigObject;
 } {
   const config = (cfg ?? {}) as ConfigObject;
   const channels = (config.channels ?? {}) as ConfigObject;
-  const kakao = (channels["kakao-talkchannel"] ?? {}) as ConfigObject;
-  return { config, channels, kakao };
+  const talkchannelConfig = (channels["kakao-talkchannel"] ?? {}) as ConfigObject;
+  return { config, channels, talkchannelConfig };
 }
 
 export const setupAdapter = {
@@ -37,14 +37,14 @@ export const setupAdapter = {
   }): unknown => {
     if (!ctx.name) return ctx.cfg;
 
-    const { config, channels, kakao } = getKakaoConfig(ctx.cfg);
+    const { config, channels, talkchannelConfig } = getKakaoTalkchannelConfig(ctx.cfg);
 
     return {
       ...config,
       channels: {
         ...channels,
         "kakao-talkchannel": {
-          ...kakao,
+          ...talkchannelConfig,
           name: ctx.name,
         },
       },
@@ -65,40 +65,40 @@ export const setupAdapter = {
     input: SetupInput;
   }): unknown => {
     const { input } = ctx;
-    const { config, channels, kakao } = getKakaoConfig(ctx.cfg);
+    const { config, channels, talkchannelConfig } = getKakaoTalkchannelConfig(ctx.cfg);
 
-    const channelConfig: ConfigObject = {
-      ...kakao,
+    const accountConfig: ConfigObject = {
+      ...talkchannelConfig,
       enabled: true,
-      dmPolicy: (kakao.dmPolicy as string) ?? "pairing",
+      dmPolicy: (talkchannelConfig.dmPolicy as string) ?? "pairing",
     };
 
     // Optional channelId
     if (input.channelId) {
-      channelConfig.channelId = input.channelId;
+      accountConfig.channelId = input.channelId;
     }
 
     // Optional relay settings
     if (input.relayUrl) {
-      channelConfig.relayUrl = input.relayUrl;
+      accountConfig.relayUrl = input.relayUrl;
     }
     if (input.relayToken) {
-      channelConfig.relayToken = input.relayToken;
+      accountConfig.relayToken = input.relayToken;
     }
     if (input.sessionToken) {
-      channelConfig.sessionToken = input.sessionToken;
+      accountConfig.sessionToken = input.sessionToken;
     }
 
     // Optional name
     if (input.name) {
-      channelConfig.name = input.name;
+      accountConfig.name = input.name;
     }
 
     return {
       ...config,
       channels: {
         ...channels,
-        "kakao-talkchannel": channelConfig,
+        "kakao-talkchannel": accountConfig,
       },
     };
   },

@@ -2,7 +2,7 @@
  * Kakao Channel Config Adapter (Simplified)
  *
  * Single channel, relay mode only.
- * Internally uses talkchannelId='default' for future extensibility.
+ * Uses OpenClaw standard accounts structure: channels.kakao-talkchannel.accounts.<accountId>
  */
 
 import type { ResolvedKakaoTalkChannel, KakaoChannelConfig } from "../types.js";
@@ -20,38 +20,54 @@ export interface ChannelConfigAdapter<T> {
   isEnabled: (account: T) => boolean;
 }
 
+type ConfigObject = Record<string, unknown>;
+
 /**
- * Extract Kakao channel config from plugin config
- * Returns empty object if not configured (will use schema defaults)
+ * Get the kakao-talkchannel config object
  */
-function getKakaoChannelConfig(cfg: unknown): KakaoChannelConfig {
-  if (!cfg || typeof cfg !== "object") {
-    return {} as KakaoChannelConfig;
+function getKakaoTalkchannelConfig(cfg: unknown): ConfigObject | undefined {
+  if (!cfg || typeof cfg !== "object") return undefined;
+  const channels = (cfg as ConfigObject).channels;
+  if (!channels || typeof channels !== "object") return undefined;
+  const talkchannelConfig = (channels as ConfigObject)["kakao-talkchannel"];
+  if (!talkchannelConfig || typeof talkchannelConfig !== "object") return undefined;
+  return talkchannelConfig as ConfigObject;
+}
+
+/**
+ * Get accounts object from kakao-talkchannel config
+ * Returns empty object if not present (will use defaults)
+ */
+function getAccounts(cfg: unknown): ConfigObject {
+  const talkchannelConfig = getKakaoTalkchannelConfig(cfg);
+  if (!talkchannelConfig) return {};
+  const accounts = talkchannelConfig.accounts;
+  if (!accounts || typeof accounts !== "object") return {};
+  return accounts as ConfigObject;
+}
+
+/**
+ * Get account config by accountId
+ * Falls back to default account if not found
+ */
+function getAccountConfig(cfg: unknown, accountId: string): KakaoChannelConfig {
+  const accounts = getAccounts(cfg);
+  const account = accounts[accountId];
+
+  if (account && typeof account === "object") {
+    return account as KakaoChannelConfig;
   }
 
-  const configObj = cfg as Record<string, unknown>;
-  const channels = configObj.channels;
-
-  if (!channels || typeof channels !== "object") {
-    return {} as KakaoChannelConfig;
-  }
-
-  const channelsObj = channels as Record<string, unknown>;
-  const kakao = channelsObj["kakao-talkchannel"];
-
-  if (!kakao || typeof kakao !== "object") {
-    return {} as KakaoChannelConfig;
-  }
-
-  return kakao as KakaoChannelConfig;
+  // Return empty object - schema will apply defaults
+  return {} as KakaoChannelConfig;
 }
 
 /**
  * Resolve Kakao TalkChannel from configuration
  * Uses schema defaults if no config provided
  */
-function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): ResolvedKakaoTalkChannel {
-  const rawConfig = getKakaoChannelConfig(cfg);
+function resolveKakaoTalkChannel(cfg: unknown, accountId: string): ResolvedKakaoTalkChannel {
+  const rawConfig = getAccountConfig(cfg, accountId);
 
   // Validate and apply defaults using schema (empty object gets all defaults)
   const validationResult = KakaoChannelConfigSchema.safeParse(rawConfig);
@@ -76,10 +92,10 @@ function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): Resolved
   }
 
   return {
-    talkchannelId: "default", // Always "default" for single channel
+    talkchannelId: accountId,
     config,
     enabled: config.enabled,
-    name: (rawConfig as unknown as Record<string, unknown>).name as string | undefined,
+    name: (rawConfig as unknown as ConfigObject).name as string | undefined,
     channelId: config.channelId,
     tokenSource,
   };
@@ -87,16 +103,18 @@ function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): Resolved
 
 /**
  * Kakao channel configuration adapter (simplified)
- * Uses OpenClaw standard naming for compatibility
+ * Uses OpenClaw standard accounts structure
  */
 export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
-  listAccountIds: (_cfg) => {
-    // Always return single channel (uses defaults if no config)
-    return ["default"];
+  listAccountIds: (cfg) => {
+    const accounts = getAccounts(cfg);
+    const ids = Object.keys(accounts);
+    // Always return at least ["default"] for zero-config support
+    return ids.length > 0 ? ids : ["default"];
   },
 
   resolveAccount: (cfg, accountId) => {
-    return resolveKakaoTalkChannel(cfg, accountId);
+    return resolveKakaoTalkChannel(cfg, accountId ?? "default");
   },
 
   defaultAccountId: (_cfg) => {
