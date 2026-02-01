@@ -10,13 +10,14 @@ import { KakaoChannelConfigSchema } from "../config/schema.js";
 
 /**
  * ChannelConfigAdapter interface
+ * Uses OpenClaw standard naming: accountId, resolveAccount, etc.
  */
 export interface ChannelConfigAdapter<T> {
-  listTalkChannelIds: (cfg: unknown) => string[];
-  resolveTalkChannel: (cfg: unknown, talkchannelId: string) => T;
-  defaultTalkChannelId: (cfg: unknown) => string;
-  isConfigured: (talkchannel: T) => boolean;
-  isEnabled: (talkchannel: T) => boolean;
+  listAccountIds: (cfg: unknown) => string[];
+  resolveAccount: (cfg: unknown, accountId: string) => T;
+  defaultAccountId: (cfg: unknown) => string;
+  isConfigured: (account: T) => boolean;
+  isEnabled: (account: T) => boolean;
 }
 
 /**
@@ -86,32 +87,33 @@ function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): Resolved
 
 /**
  * Kakao channel configuration adapter (simplified)
+ * Uses OpenClaw standard naming for compatibility
  */
 export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
-  listTalkChannelIds: (_cfg) => {
+  listAccountIds: (_cfg) => {
     // Always return single channel (uses defaults if no config)
     return ["default"];
   },
 
-  resolveTalkChannel: (cfg, talkchannelId) => {
-    return resolveKakaoTalkChannel(cfg, talkchannelId);
+  resolveAccount: (cfg, accountId) => {
+    return resolveKakaoTalkChannel(cfg, accountId);
   },
 
-  defaultTalkChannelId: (_cfg) => {
+  defaultAccountId: (_cfg) => {
     return "default";
   },
 
-  isConfigured: (talkchannel) => {
+  isConfigured: (account) => {
     // For relay mode: always configured (can auto-create session)
     return Boolean(
-      talkchannel.config.sessionToken ||
-      talkchannel.config.relayToken ||
+      account.config.sessionToken ||
+      account.config.relayToken ||
       process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
       true // Can always auto-create session
     );
   },
 
-  isEnabled: (talkchannel) => {
-    return talkchannel.config.enabled;
+  isEnabled: (account) => {
+    return account.config.enabled;
   },
 };

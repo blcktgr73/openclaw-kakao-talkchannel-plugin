@@ -7,7 +7,7 @@ import { describe, it, expect } from "vitest";
 import { configAdapter } from "../../../src/adapters/config";
 
 describe("ChannelConfigAdapter (Simplified)", () => {
-  describe("listTalkChannelIds", () => {
+  describe("listAccountIds", () => {
     it("should always return ['default'] (single channel)", () => {
       const cfg = {
         channels: {
@@ -17,7 +17,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const ids = configAdapter.listTalkChannelIds(cfg);
+      const ids = configAdapter.listAccountIds(cfg);
       expect(ids).toEqual(["default"]);
     });
 
@@ -26,24 +26,24 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         channels: {},
       };
 
-      const ids = configAdapter.listTalkChannelIds(cfg);
+      const ids = configAdapter.listAccountIds(cfg);
       expect(ids).toEqual(["default"]);
     });
 
     it("should return ['default'] even when channels missing", () => {
       const cfg = {};
 
-      const ids = configAdapter.listTalkChannelIds(cfg);
+      const ids = configAdapter.listAccountIds(cfg);
       expect(ids).toEqual(["default"]);
     });
 
     it("should return ['default'] even when config is null or undefined", () => {
-      expect(configAdapter.listTalkChannelIds(null)).toEqual(["default"]);
-      expect(configAdapter.listTalkChannelIds(undefined)).toEqual(["default"]);
+      expect(configAdapter.listAccountIds(null)).toEqual(["default"]);
+      expect(configAdapter.listAccountIds(undefined)).toEqual(["default"]);
     });
   });
 
-  describe("resolveTalkChannel", () => {
+  describe("resolveAccount", () => {
     it("should resolve talkchannel with valid config", () => {
       const cfg = {
         channels: {
@@ -55,7 +55,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
 
       expect(talkchannel.talkchannelId).toBe("default");
       expect(talkchannel.config.channelId).toBe("channel123");
@@ -70,7 +70,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
 
       expect(talkchannel.config.enabled).toBe(true);
       expect(talkchannel.config.dmPolicy).toBe("pairing");
@@ -85,7 +85,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         channels: {},
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
       expect(talkchannel.talkchannelId).toBe("default");
       expect(talkchannel.config.enabled).toBe(true);
       expect(talkchannel.config.dmPolicy).toBe("pairing");
@@ -94,16 +94,16 @@ describe("ChannelConfigAdapter (Simplified)", () => {
     it("should use defaults when channels missing", () => {
       const cfg = {};
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
       expect(talkchannel.talkchannelId).toBe("default");
       expect(talkchannel.config.enabled).toBe(true);
     });
 
     it("should use defaults when config is null or undefined", () => {
-      const talkchannel1 = configAdapter.resolveTalkChannel(null, "default");
+      const talkchannel1 = configAdapter.resolveAccount(null, "default");
       expect(talkchannel1.config.enabled).toBe(true);
 
-      const talkchannel2 = configAdapter.resolveTalkChannel(undefined, "default");
+      const talkchannel2 = configAdapter.resolveAccount(undefined, "default");
       expect(talkchannel2.config.enabled).toBe(true);
     });
 
@@ -122,7 +122,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
 
       expect(talkchannel.talkchannelId).toBe("default");
       expect(talkchannel.config.relayUrl).toBe("https://relay.example.com");
@@ -140,7 +140,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
 
       expect(talkchannel.enabled).toBe(false);
       expect(talkchannel.config.enabled).toBe(false);
@@ -156,7 +156,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
 
       expect(talkchannel.name).toBe("My Kakao Bot");
     });
@@ -170,11 +170,11 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow();
+      expect(() => configAdapter.resolveAccount(cfg, "default")).toThrow();
     });
   });
 
-  describe("defaultTalkChannelId", () => {
+  describe("defaultAccountId", () => {
     it("should always return 'default'", () => {
       const cfg = {
         channels: {
@@ -184,7 +184,7 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         },
       };
 
-      const id = configAdapter.defaultTalkChannelId(cfg);
+      const id = configAdapter.defaultAccountId(cfg);
       expect(id).toBe("default");
     });
 
@@ -193,13 +193,13 @@ describe("ChannelConfigAdapter (Simplified)", () => {
         channels: {},
       };
 
-      const id = configAdapter.defaultTalkChannelId(cfg);
+      const id = configAdapter.defaultAccountId(cfg);
       expect(id).toBe("default");
     });
 
     it("should return 'default' even when config is null or undefined", () => {
-      expect(configAdapter.defaultTalkChannelId(null)).toBe("default");
-      expect(configAdapter.defaultTalkChannelId(undefined)).toBe("default");
+      expect(configAdapter.defaultAccountId(null)).toBe("default");
+      expect(configAdapter.defaultAccountId(undefined)).toBe("default");
     });
   });
 
@@ -287,16 +287,16 @@ describe("ChannelConfigAdapter (Simplified)", () => {
       };
 
       // List talkchannels
-      const ids = configAdapter.listTalkChannelIds(cfg);
+      const ids = configAdapter.listAccountIds(cfg);
       expect(ids).toEqual(["default"]);
 
       // Resolve channel
-      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      const talkchannel = configAdapter.resolveAccount(cfg, "default");
       expect(configAdapter.isConfigured(talkchannel)).toBe(true);
       expect(configAdapter.isEnabled(talkchannel)).toBe(true);
 
       // Get default talkchannel ID
-      const defaultId = configAdapter.defaultTalkChannelId(cfg);
+      const defaultId = configAdapter.defaultAccountId(cfg);
       expect(defaultId).toBe("default");
     });
   });

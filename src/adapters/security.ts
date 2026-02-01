@@ -16,18 +16,22 @@ export interface ChannelSecurityDmPolicy {
 }
 
 export interface SecurityContext {
-  talkchannel: ResolvedKakaoTalkChannel;
-  talkchannelId: string;
+  account: ResolvedKakaoTalkChannel;
+  accountId: string;
+  // Legacy names for compatibility
+  talkchannel?: ResolvedKakaoTalkChannel;
+  talkchannelId?: string;
 }
 
 export const securityAdapter = {
   resolveDmPolicy: (ctx: SecurityContext): ChannelSecurityDmPolicy | null => {
-    const { talkchannel } = ctx;
-    const policy = talkchannel.config.dmPolicy ?? "pairing";
+    const account = ctx.account ?? ctx.talkchannel;
+    if (!account) return null;
+    const policy = account.config.dmPolicy ?? "pairing";
 
     return {
       policy,
-      allowFrom: talkchannel.config.allowFrom ?? [],
+      allowFrom: account.config.allowFrom ?? [],
       policyPath: `channels["kakao-talkchannel"].dmPolicy`,
       allowFromPath: `channels["kakao-talkchannel"].allowFrom`,
       approveHint: "openclaw pairing approve kakao-talkchannel <userId>",
@@ -36,18 +40,19 @@ export const securityAdapter = {
     };
   },
 
-  collectWarnings: (ctx: { talkchannel: ResolvedKakaoTalkChannel }): string[] => {
-    const { talkchannel } = ctx;
+  collectWarnings: (ctx: { account?: ResolvedKakaoTalkChannel; talkchannel?: ResolvedKakaoTalkChannel }): string[] => {
+    const account = ctx.account ?? ctx.talkchannel;
+    if (!account) return [];
     const warnings: string[] = [];
 
-    if (talkchannel.config.dmPolicy === "open") {
+    if (account.config.dmPolicy === "open") {
       warnings.push(
         "- Kakao DM: dmPolicy='open' allows any user to message. " +
           "Consider 'pairing' or 'allowlist' for production."
       );
     }
 
-    if (!talkchannel.config.relayToken && !talkchannel.config.sessionToken) {
+    if (!account.config.relayToken && !account.config.sessionToken) {
       // Not a warning in simplified mode - session can be auto-created
     }
 
