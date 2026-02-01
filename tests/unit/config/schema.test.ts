@@ -54,7 +54,6 @@ describe("Config Schema (Simplified)", () => {
         expect(result.data.relayUrl).toBe("https://k.tess.dev/");
         expect(result.data.reconnectDelayMs).toBe(1000);
         expect(result.data.maxReconnectDelayMs).toBe(30000);
-        expect(result.data.callbackTimeoutMs).toBe(55000);
       }
     });
 

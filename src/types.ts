@@ -135,20 +135,26 @@ export interface KakaoSkillResponse {
 export type KakaoDmPolicy = "pairing" | "allowlist" | "open" | "disabled";
 
 export interface KakaoChannelConfig {
+  // 사용자 설정
   enabled: boolean;
-  channelId?: string; // Optional (pairing-based identification)
-
-  // Relay mode settings (SSE)
-  relayUrl?: string;
-  relayToken?: string;
-  sessionToken?: string;
-  reconnectDelayMs?: number;
-  maxReconnectDelayMs?: number;
-
-  // Common settings
   dmPolicy: KakaoDmPolicy;
   allowFrom?: string[];
-  callbackTimeoutMs?: number;
+
+  // 고급 설정 (대부분 불필요)
+  /** @advanced */
+  channelId?: string;
+  /** @advanced */
+  relayUrl?: string;
+  /** @advanced */
+  relayToken?: string;
+
+  // 내부 설정 (자동 관리)
+  /** @internal */
+  sessionToken?: string;
+  /** @internal */
+  reconnectDelayMs?: number;
+  /** @internal */
+  maxReconnectDelayMs?: number;
 }
 
 export interface ResolvedKakaoTalkChannel {

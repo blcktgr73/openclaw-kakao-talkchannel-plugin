@@ -10,34 +10,43 @@ export const DEFAULT_RELAY_URL = "https://k.tess.dev/";
 
 /**
  * Single account configuration schema
- *
- * channelId is optional (pairing-based identification)
  */
 export const KakaoAccountConfigSchema = z.object({
-  // Basic settings
+  // ─────────────────────────────────────────────────────────────
+  // 사용자 설정 (문서화됨)
+  // ─────────────────────────────────────────────────────────────
+  /** 채널 활성화 여부 */
   enabled: z.boolean().default(true),
+
+  /** DM 정책: pairing(페어링 필요), allowlist(허용 목록), open(모두 허용), disabled(비활성) */
+  dmPolicy: z.enum(["pairing", "allowlist", "open", "disabled"]).default("pairing"),
+
+  /** dmPolicy가 "allowlist"일 때 허용할 사용자 ID 목록 */
+  allowFrom: z.array(z.string()).optional(),
+
+  // ─────────────────────────────────────────────────────────────
+  // 고급 설정 (대부분의 사용자는 설정 불필요)
+  // ─────────────────────────────────────────────────────────────
+  /** @advanced 채널 식별자 (선택) - 페어링 기반 식별 시 불필요 */
   channelId: z.string().min(1, "channelId는 필수입니다").optional(),
 
-  // Relay mode settings (SSE)
+  /** @advanced 릴레이 서버 URL - 기본값 사용 권장 */
   relayUrl: z.string().default(DEFAULT_RELAY_URL),
-  relayToken: z.string().optional(),
-  sessionToken: z.string().optional(),
-  reconnectDelayMs: z.number()
-    .min(500, "reconnectDelayMs는 최소 500ms 이상이어야 합니다")
-    .max(10000, "reconnectDelayMs는 최대 10000ms 이하여야 합니다")
-    .default(1000),
-  maxReconnectDelayMs: z.number()
-    .min(5000, "maxReconnectDelayMs는 최소 5000ms 이상이어야 합니다")
-    .max(60000, "maxReconnectDelayMs는 최대 60000ms 이하여야 합니다")
-    .default(30000),
 
-  // Common settings
-  dmPolicy: z.enum(["pairing", "allowlist", "open", "disabled"]).default("pairing"),
-  allowFrom: z.array(z.string()).optional(),
-  callbackTimeoutMs: z.number()
-    .min(5000, "callbackTimeoutMs는 최소 5000ms 이상이어야 합니다")
-    .max(55000, "callbackTimeoutMs는 최대 55000ms 이하여야 합니다")
-    .default(55000),
+  /** @advanced 릴레이 인증 토큰 - 환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN 사용 권장 */
+  relayToken: z.string().optional(),
+
+  // ─────────────────────────────────────────────────────────────
+  // 내부 설정 (자동 관리, 문서화하지 않음)
+  // ─────────────────────────────────────────────────────────────
+  /** @internal 세션 토큰 - 자동 생성됨 */
+  sessionToken: z.string().optional(),
+
+  /** @internal SSE 재연결 초기 지연 시간 (ms) */
+  reconnectDelayMs: z.number().min(500).max(10000).default(1000),
+
+  /** @internal SSE 재연결 최대 지연 시간 (ms) */
+  maxReconnectDelayMs: z.number().min(5000).max(60000).default(30000),
 });
 
 /**

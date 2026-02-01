@@ -116,7 +116,6 @@ describe("ChannelConfigAdapter (Simplified)", () => {
       expect(account.config.relayUrl).toBe("https://k.tess.dev/");
       expect(account.config.reconnectDelayMs).toBe(1000);
       expect(account.config.maxReconnectDelayMs).toBe(30000);
-      expect(account.config.callbackTimeoutMs).toBe(55000);
     });
 
     it("should use defaults when accounts not configured", () => {

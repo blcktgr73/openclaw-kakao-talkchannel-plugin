@@ -4,42 +4,117 @@
 
 [English](./README.en.md)
 
-## 설치
+---
 
-### npm에서 설치 (권장)
+## 사용자 가이드
+
+### 설치
+
+OpenClaw에게 말하세요:
+
+> "카카오톡 플러그인 설치해줘"
+
+그게 끝입니다. OpenClaw가 알아서 설치합니다.
+
+### 카카오톡 연결
+
+1. OpenClaw에게 **"카카오톡 연결해줘"**
+2. OpenClaw가 페어링 코드 제공 (예: `ABCD-1234`)
+3. [카카오톡 채널](http://pf.kakao.com/_scexbC) 접속
+4. 채팅창에 `/pair ABCD-1234` 입력
+5. 연결 완료!
+
+> **중요**: 반드시 OpenClaw가 먼저 코드를 생성합니다.
+
+### 문제 해결
+
+| 문제 | OpenClaw에게 요청 |
+|------|------------------|
+| 플러그인이 안 됨 | "플러그인 진단해줘" |
+| 채널이 안 보임 | "게이트웨이 재시작해줘" |
+| 페어링이 안 됨 | "카카오톡 연결해줘" (처음부터 다시) |
+
+---
+
+## OpenClaw 에이전트 가이드
+
+> 이 섹션은 OpenClaw가 참조하는 자동화 지침입니다.
+
+### 플러그인 설치 요청 시
+
+사용자가 "카카오톡 플러그인 설치", "카톡 연동" 등을 요청하면:
 
 ```bash
+# 1. 설치
 openclaw plugins install @openclaw/kakao-talkchannel
-```
 
-### 로컬 설치 (개발용)
-
-```bash
-# 링크 모드 (소스 수정 시 바로 반영)
-openclaw plugins install -l /path/to/kakao-talkchannel-plugin
-
-# 또는 복사 모드
-openclaw plugins install /path/to/kakao-talkchannel-plugin
-```
-
-### 설치 확인
-
-```bash
+# 2. 확인 (kakao-talkchannel이 loaded 상태인지)
 openclaw plugins list
-# Kakao TalkChannel | kakao-talkchannel | loaded | ... 확인
+
+# 3. 게이트웨이 재시작
+openclaw gateway restart
+
+# 4. 채널 확인
+openclaw channels list
 ```
 
-## 설정
+### 카카오톡 연결 요청 시
 
-설치 후 게이트웨이를 재시작하면 자동으로 채널이 활성화됩니다.
+사용자가 "카카오톡 연결", "카톡 연동" 등을 요청하면:
+
+1. 페어링 코드 생성
+2. 사용자에게 안내:
+   > "카카오톡 채널(http://pf.kakao.com/_scexbC)에서 `/pair {코드}`를 입력하세요"
+3. 페어링 완료 대기
+
+### 로컬 플러그인 설치 요청 시
+
+사용자가 경로를 지정하며 로컬 설치를 요청하면:
 
 ```bash
-openclaw gateway restart
+# 링크 모드 (개발용, 소스 수정 즉시 반영)
+openclaw plugins install -l {경로}
+
+# 복사 모드
+openclaw plugins install {경로}
 ```
 
-### 기본 설정
+---
 
-`~/.openclaw/openclaw.json` (또는 `config.yaml`)에 자동 추가되거나 수동으로 추가:
+## 설정 레퍼런스
+
+대부분의 경우 설정이 필요 없습니다. 설치 후 바로 사용 가능합니다.
+
+### 설정 파일 위치
+
+`~/.openclaw/openclaw.json` 또는 `config.yaml`
+
+### 사용자 설정
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `enabled` | 채널 활성화 | `true` |
+| `dmPolicy` | DM 정책 | `"pairing"` |
+| `allowFrom` | 허용 사용자 목록 (`allowlist` 모드) | - |
+
+#### dmPolicy 옵션
+
+| 값 | 설명 |
+|----|------|
+| `pairing` | 페어링된 사용자만 (기본값, 권장) |
+| `allowlist` | `allowFrom` 목록의 사용자만 |
+| `open` | 모든 사용자 |
+| `disabled` | DM 비활성화 |
+
+### 고급 설정 (대부분 불필요)
+
+| 옵션 | 설명 | 기본값 |
+|------|------|--------|
+| `channelId` | 채널 식별자 | 자동 |
+| `relayUrl` | 릴레이 서버 | `https://k.tess.dev/` |
+| `relayToken` | 릴레이 토큰 | 환경변수 또는 자동 |
+
+### 설정 예시
 
 ```json
 {
@@ -47,7 +122,8 @@ openclaw gateway restart
     "kakao-talkchannel": {
       "accounts": {
         "default": {
-          "enabled": true
+          "enabled": true,
+          "dmPolicy": "pairing"
         }
       }
     }
@@ -55,55 +131,7 @@ openclaw gateway restart
 }
 ```
 
-## 연결 방법
-
-> **중요**: 페어링 코드는 **OpenClaw가 먼저 생성**합니다. 카카오톡에서 `/pair`만 입력하면 코드가 나오지 않습니다.
-
-### 올바른 연결 순서
-
-1. OpenClaw에게 연결 요청 (예시)
-   - "카카오톡 연결해줘"
-   - "카톡채널 연결"
-   - "카카오톡채널 연결"
-   - "카톡 연동해줘"
-2. **OpenClaw가 페어링 코드를 생성하여 표시** (예: `ABCD-1234`)
-3. 카카오톡 채널에 접속: http://pf.kakao.com/_scexbC
-4. 채팅창에 `/pair ABCD-1234` 입력 (**코드 포함!**)
-5. "OpenClaw에 연결되었습니다" 메시지 확인
-6. 연결 완료 - 이제 대화 가능
-
-### 잘못된 흐름 (주의!)
-
-- 카카오톡에서 `/pair`만 입력 → 코드가 나오지 않음
-- 카카오에서 나온 코드를 OpenClaw에 입력 → 지원하지 않는 방식
-
-### 테스트용 톡채널
-
-http://pf.kakao.com/_scexbC
-
-## 문제 해결
-
-### 플러그인이 로드되지 않음
-
-```bash
-# 플러그인 상태 확인
-openclaw plugins list
-
-# 진단 실행
-openclaw plugins doctor
-```
-
-### 채널이 표시되지 않음
-
-```bash
-# 채널 목록 확인
-openclaw channels list
-```
-
-게이트웨이 재시작 필요:
-```bash
-openclaw gateway restart
-```
+---
 
 ## 라이선스
 
