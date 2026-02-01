@@ -20,7 +20,7 @@ export const KakaoChannelConfigSchema = z.object({
   channelId: z.string().min(1, "channelId는 필수입니다").optional(),
 
   // Relay mode settings (SSE)
-  relayUrl: z.string().url("유효한 URL이어야 합니다").default(DEFAULT_RELAY_URL),
+  relayUrl: z.string().default(DEFAULT_RELAY_URL),
   relayToken: z.string().optional(),
   sessionToken: z.string().optional(),
   reconnectDelayMs: z.number()

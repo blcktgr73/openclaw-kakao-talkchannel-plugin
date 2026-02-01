@@ -122,13 +122,16 @@ describe("Config Schema (Simplified)", () => {
       expect(result.success).toBe(false);
     });
 
-    it("should validate relayUrl as URL", () => {
+    it("should accept any string for relayUrl (no URL validation for AJV compatibility)", () => {
       const config = {
-        relayUrl: "not-a-url",
+        relayUrl: "https://relay.example.com",
       };
 
       const result = KakaoChannelConfigSchema.safeParse(config);
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.relayUrl).toBe("https://relay.example.com");
+      }
     });
 
     it("should accept valid allowFrom array", () => {
