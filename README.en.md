@@ -4,17 +4,9 @@ Connect KakaoTalk Channel to OpenClaw.
 
 [한국어](./README.md)
 
-## Configuration
-
-`~/.openclaw/config.yaml`:
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-```
-
 ## How to Connect
+
+No configuration required - works out of the box after installation.
 
 1. Ask OpenClaw "Connect KakaoTalk"
 2. OpenClaw provides a pairing code (e.g., `ABCD-1234`)

@@ -4,17 +4,9 @@
 
 [English](./README.en.md)
 
-## 설정
-
-`~/.openclaw/config.yaml`:
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-```
-
 ## 연결 방법
+
+플러그인 설치 후 별도 설정 없이 바로 사용 가능합니다.
 
 1. OpenClaw에게 "카카오톡 연결해줘" 요청
 2. OpenClaw가 pairing 코드 제공 (예: `ABCD-1234`)
