@@ -4,12 +4,75 @@
   "version": "0.1.0",
   "description": "Kakao TalkChannel integration for OpenClaw",
   "main": "index.ts",
+  "channels": ["kakao-talkchannel"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "accounts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable this account"
+            },
+            "channelId": {
+              "type": "string",
+              "description": "Channel identifier (optional, for display only)"
+            },
+            "relayUrl": {
+              "type": "string",
+              "format": "uri",
+              "default": "https://k.tess.dev/",
+              "description": "Relay server URL"
+            },
+            "relayToken": {
+              "type": "string",
+              "description": "Relay authentication token (account-based auth)"
+            },
+            "sessionToken": {
+              "type": "string",
+              "description": "Session token (pairing-based auth)"
+            },
+            "dmPolicy": {
+              "type": "string",
+              "enum": ["pairing", "allowlist", "open", "disabled"],
+              "default": "pairing",
+              "description": "DM policy for unauthorized users"
+            },
+            "allowFrom": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Allowed user IDs (when dmPolicy is allowlist)"
+            }
+          }
+        }
+      }
+    }
   },
-  "openclaw": {
-    "channels": ["kakao-talkchannel"]
+  "uiHints": {
+    "accounts.*.relayToken": {
+      "label": "Relay Token",
+      "sensitive": true,
+      "placeholder": "relay_xxx..."
+    },
+    "accounts.*.sessionToken": {
+      "label": "Session Token",
+      "sensitive": true
+    },
+    "accounts.*.relayUrl": {
+      "label": "Relay Server URL",
+      "placeholder": "https://k.tess.dev/"
+    },
+    "accounts.*.channelId": {
+      "label": "Channel ID",
+      "placeholder": "@example"
+    },
+    "accounts.*.dmPolicy": {
+      "label": "DM Policy"
+    }
   }
 }

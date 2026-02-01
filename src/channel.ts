@@ -11,7 +11,7 @@ import { outboundAdapter } from "./adapters/outbound.js";
 import { statusAdapter } from "./adapters/status.js";
 import { securityAdapter } from "./adapters/security.js";
 import { pairingAdapter } from "./adapters/pairing.js";
-import { gatewayAdapter } from "./adapters/gateway.js";
+import { gatewayAdapter, getPendingPairingInfo } from "./adapters/gateway.js";
 import { setupAdapter } from "./adapters/setup.js";
 import { KakaoChannelConfigSchema } from "./config/schema.js";
 
@@ -78,3 +78,4 @@ export const kakaoPlugin = {
 };
 
 export type { ResolvedKakaoTalkChannel };
+export { getPendingPairingInfo };

@@ -6,7 +6,7 @@
  */
 
 import type { PluginRuntime } from "openclaw/plugin-sdk";
-import { kakaoPlugin } from "./src/channel.js";
+import { kakaoPlugin, getPendingPairingInfo } from "./src/channel.js";
 import { setKakaoRuntime } from "./src/runtime.js";
 import { KakaoChannelConfigSchema } from "./src/config/schema.js";
 
@@ -34,3 +34,4 @@ const plugin = {
 };
 
 export default plugin;
+export { getPendingPairingInfo };
