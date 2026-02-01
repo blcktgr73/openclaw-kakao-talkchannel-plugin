@@ -2,6 +2,7 @@
  * Gateway Adapter tests (Simplified)
  *
  * Relay mode only.
+ * Uses OpenClaw standard naming: account, startAccount, stopAccount
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ResolvedKakaoTalkChannel } from "../../../src/types";
@@ -24,13 +25,13 @@ vi.mock("../../../src/relay/stream.js", () => ({
 const { gatewayAdapter } = await import("../../../src/adapters/gateway");
 
 describe("Gateway Adapter (Simplified)", () => {
-  let mockTalkChannel: ResolvedKakaoTalkChannel;
+  let mockAccount: ResolvedKakaoTalkChannel;
   let mockAbortSignal: AbortSignal;
   let mockOnMessage: ReturnType<typeof vi.fn>;
   let mockLog: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    mockTalkChannel = {
+    mockAccount = {
       talkchannelId: "default",
       enabled: true,
       config: {
@@ -49,29 +50,29 @@ describe("Gateway Adapter (Simplified)", () => {
     };
   });
 
-  describe("startTalkChannel", () => {
+  describe("startAccount", () => {
     it("should always start SSE stream (relay mode only)", async () => {
       const ctx = {
-        talkchannel: mockTalkChannel,
+        account: mockAccount,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      await expect(gatewayAdapter.startTalkChannel(ctx as any)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.startAccount(ctx as any)).resolves.toBeUndefined();
     });
 
     it("should log info message when starting", async () => {
       const ctx = {
-        talkchannel: mockTalkChannel,
+        account: mockAccount,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      await gatewayAdapter.startTalkChannel(ctx as any);
+      await gatewayAdapter.startAccount(ctx as any);
 
       expect(mockLog.info).toHaveBeenCalled();
       const logMessage = mockLog.info.mock.calls[0]?.[0] ?? "";
@@ -81,14 +82,14 @@ describe("Gateway Adapter (Simplified)", () => {
     it("should handle abort signal", async () => {
       const controller = new AbortController();
       const ctx = {
-        talkchannel: mockTalkChannel,
+        account: mockAccount,
         cfg: {},
         abortSignal: controller.signal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      const startPromise = gatewayAdapter.startTalkChannel(ctx as any);
+      const startPromise = gatewayAdapter.startAccount(ctx as any);
       controller.abort();
 
       await expect(startPromise).resolves.toBeUndefined();
@@ -96,46 +97,46 @@ describe("Gateway Adapter (Simplified)", () => {
 
     it("should accept optional log parameter", async () => {
       const ctx = {
-        talkchannel: mockTalkChannel,
+        account: mockAccount,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         // log is optional
       };
 
-      await expect(gatewayAdapter.startTalkChannel(ctx as any)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.startAccount(ctx as any)).resolves.toBeUndefined();
     });
 
     it("should call onMessage callback when message received", async () => {
       const ctx = {
-        talkchannel: mockTalkChannel,
+        account: mockAccount,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      await gatewayAdapter.startTalkChannel(ctx as any);
+      await gatewayAdapter.startAccount(ctx as any);
       expect(typeof ctx.onMessage).toBe("function");
     });
   });
 
-  describe("stopTalkChannel", () => {
-    it("should stop talkchannel", async () => {
+  describe("stopAccount", () => {
+    it("should stop account", async () => {
       const ctx = {
-        talkchannelId: "default",
+        accountId: "default",
       };
 
-      await expect(gatewayAdapter.stopTalkChannel(ctx)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.stopAccount(ctx)).resolves.toBeUndefined();
     });
 
     it("should handle multiple stop calls", async () => {
       const ctx = {
-        talkchannelId: "default",
+        accountId: "default",
       };
 
-      await gatewayAdapter.stopTalkChannel(ctx);
-      await gatewayAdapter.stopTalkChannel(ctx);
+      await gatewayAdapter.stopAccount(ctx);
+      await gatewayAdapter.stopAccount(ctx);
 
       expect(true).toBe(true);
     });

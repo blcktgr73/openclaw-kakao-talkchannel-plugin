@@ -2,13 +2,14 @@
  * Kakao Channel Gateway Adapter (Simplified)
  *
  * Relay mode only - always starts SSE stream.
+ * Uses OpenClaw standard naming: account, startAccount, stopAccount
  */
 
 import type { ResolvedKakaoTalkChannel, InboundMessage } from "../types.js";
 import { startRelayStream, type StreamCallbacks } from "../relay/stream.js";
 
 export interface GatewayContext {
-  talkchannel: ResolvedKakaoTalkChannel;
+  account: ResolvedKakaoTalkChannel;
   cfg: unknown;
   abortSignal: AbortSignal;
   onMessage: (msg: InboundMessage) => Promise<void>;
@@ -20,11 +21,11 @@ export interface GatewayContext {
   };
 }
 
-export interface StopTalkChannelContext {
-  talkchannelId: string;
+export interface StopAccountContext {
+  accountId: string;
 }
 
-export interface StartTalkChannelResult {
+export interface StartAccountResult {
   pairingCode?: string;
   expiresIn?: number;
 }
@@ -39,12 +40,12 @@ export function getPendingPairingInfo(): { pairingCode: string; expiresIn: numbe
 }
 
 export const gatewayAdapter = {
-  startTalkChannel: async (ctx: GatewayContext): Promise<void> => {
-    const { talkchannel, abortSignal, onMessage, onPairingRequired, onPairingComplete, log } = ctx;
+  startAccount: async (ctx: GatewayContext): Promise<void> => {
+    const { account, abortSignal, onMessage, onPairingRequired, onPairingComplete, log } = ctx;
 
     if (log) {
       log.info(
-        `[kakao:${talkchannel.talkchannelId}] Starting SSE stream to ${talkchannel.config.relayUrl}`
+        `[kakao-talkchannel:${account.talkchannelId}] Starting SSE stream to ${account.config.relayUrl}`
       );
     }
 
@@ -55,11 +56,11 @@ export const gatewayAdapter = {
 
         // Log the pairing code prominently
         if (log) {
-          log.info(`[kakao:${talkchannel.talkchannelId}] ========================================`);
-          log.info(`[kakao:${talkchannel.talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
-          log.info(`[kakao:${talkchannel.talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
-          log.info(`[kakao:${talkchannel.talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
-          log.info(`[kakao:${talkchannel.talkchannelId}] ========================================`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
         }
 
         // Call external callback if provided
@@ -67,21 +68,21 @@ export const gatewayAdapter = {
       },
       onPairingComplete: (kakaoUserId) => {
         if (log) {
-          log.info(`[kakao:${talkchannel.talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
         }
         onPairingComplete?.(kakaoUserId);
       },
       onPairingExpired: (reason) => {
         if (log) {
-          log.info(`[kakao:${talkchannel.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
+          log.info(`[kakao-talkchannel:${account.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
         }
       },
     };
 
-    return startRelayStream(talkchannel, onMessage, abortSignal, {}, callbacks);
+    return startRelayStream(account, onMessage, abortSignal, {}, callbacks);
   },
 
-  stopTalkChannel: async (_ctx: StopTalkChannelContext): Promise<void> => {
+  stopAccount: async (_ctx: StopAccountContext): Promise<void> => {
     return Promise.resolve();
   },
 
