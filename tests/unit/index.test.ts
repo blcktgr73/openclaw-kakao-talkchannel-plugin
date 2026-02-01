@@ -1,11 +1,10 @@
 /**
- * Plugin entry point tests
+ * Plugin entry point tests (Simplified)
  *
- * Tests the main plugin export and its register function.
- * Verifies proper initialization of runtime and channel registration.
+ * Single channel, relay mode only.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import plugin from "../../index.js";
 
@@ -19,7 +18,7 @@ const createMockRuntime = (): PluginRuntime => ({
   },
 } as unknown as PluginRuntime);
 
-describe("Plugin Entry Point", () => {
+describe("Plugin Entry Point (Simplified)", () => {
   describe("plugin object", () => {
     it("should have correct id", () => {
       expect(plugin.id).toBe("kakao-talkchannel");
@@ -45,19 +44,18 @@ describe("Plugin Entry Point", () => {
   });
 
   describe("register function", () => {
-    it("should call setKakaoRuntime with api.runtime", () => {
+    it("should call setKakaoRuntime and registerChannel", () => {
       const mockRuntime = createMockRuntime();
       const registerChannelMock = vi.fn();
 
       const api = {
         runtime: mockRuntime,
+        config: {},
         registerChannel: registerChannelMock,
       };
 
-      // Call register
       plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
 
-      // Verify registerChannel was called with kakaoPlugin
       expect(registerChannelMock).toHaveBeenCalledOnce();
       expect(registerChannelMock).toHaveBeenCalledWith({
         plugin: expect.objectContaining({
@@ -72,6 +70,7 @@ describe("Plugin Entry Point", () => {
 
       const api = {
         runtime: mockRuntime,
+        config: {},
         registerChannel: registerChannelMock,
       };
 
@@ -85,23 +84,22 @@ describe("Plugin Entry Point", () => {
       expect(callArgs.plugin).toHaveProperty("outbound");
     });
 
-    it("should initialize runtime before registering channel", () => {
+    it("should not register HTTP route (no direct mode)", () => {
       const mockRuntime = createMockRuntime();
-      const callOrder: string[] = [];
-
-      const registerChannelMock = vi.fn(() => {
-        callOrder.push("registerChannel");
-      });
+      const registerChannelMock = vi.fn();
+      const registerHttpRouteMock = vi.fn();
 
       const api = {
         runtime: mockRuntime,
+        config: {},
         registerChannel: registerChannelMock,
+        registerHttpRoute: registerHttpRouteMock,
       };
 
       plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
 
-      // Verify registerChannel was called
-      expect(callOrder).toContain("registerChannel");
+      // HTTP route should NOT be registered (relay mode only)
+      expect(registerHttpRouteMock).not.toHaveBeenCalled();
     });
   });
 

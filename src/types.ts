@@ -1,9 +1,10 @@
 /**
  * Kakao Channel Plugin Type Definitions
- * 
- * Reference: 
+ *
+ * Simplified: Single channel + Relay mode only
+ *
+ * Reference:
  * - Kakao SkillPayload/Response: docs/relay-server-api-spec.md
- * - Implementation plan: docs/implementation-plan.md
  */
 
 // ============================================================================
@@ -128,25 +129,19 @@ export interface KakaoSkillResponse {
 }
 
 // ============================================================================
-// Plugin Configuration Types
+// Plugin Configuration Types (Simplified: Relay mode only)
 // ============================================================================
 
 export type KakaoDmPolicy = "pairing" | "allowlist" | "open" | "disabled";
-export type KakaoConnectionMode = "direct" | "relay";
 
-export interface KakaoTalkChannelConfig {
+export interface KakaoChannelConfig {
   enabled: boolean;
-  channelId?: string; // Optional for relay mode
-  mode: KakaoConnectionMode;
-
-  // Direct mode settings
-  publicWebhookUrl?: string;
-  webhookPath?: string;
+  channelId?: string; // Optional (pairing-based identification)
 
   // Relay mode settings (SSE)
   relayUrl?: string;
   relayToken?: string;
-  sessionToken?: string; // Auto-generated session token
+  sessionToken?: string;
   reconnectDelayMs?: number;
   maxReconnectDelayMs?: number;
 
@@ -157,12 +152,11 @@ export interface KakaoTalkChannelConfig {
 }
 
 export interface ResolvedKakaoTalkChannel {
-  talkchannelId: string;
-  config: KakaoTalkChannelConfig;
+  talkchannelId: string; // Always "default" for single channel (kept for future extensibility)
+  config: KakaoChannelConfig;
   enabled: boolean;
   name?: string;
-  channelId?: string; // Optional for relay mode
-  mode: KakaoConnectionMode;
+  channelId?: string; // Optional (from config)
   tokenSource?: "config" | "env" | "session" | "none";
 }
 

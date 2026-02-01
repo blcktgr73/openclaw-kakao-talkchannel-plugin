@@ -1,7 +1,7 @@
 /**
- * Kakao Channel Security Adapter
+ * Kakao Channel Security Adapter (Simplified)
  *
- * Handles DM policy resolution and security warnings for Kakao TalkChannels.
+ * Relay mode only security handling.
  */
 
 import type { ResolvedKakaoTalkChannel } from "../types.js";
@@ -22,14 +22,14 @@ export interface SecurityContext {
 
 export const securityAdapter = {
   resolveDmPolicy: (ctx: SecurityContext): ChannelSecurityDmPolicy | null => {
-    const { talkchannel, talkchannelId } = ctx;
+    const { talkchannel } = ctx;
     const policy = talkchannel.config.dmPolicy ?? "pairing";
 
     return {
       policy,
       allowFrom: talkchannel.config.allowFrom ?? [],
-      policyPath: `channels["kakao-talkchannel"].talkchannels.${talkchannelId}.dmPolicy`,
-      allowFromPath: `channels["kakao-talkchannel"].talkchannels.${talkchannelId}.allowFrom`,
+      policyPath: `channels["kakao-talkchannel"].dmPolicy`,
+      allowFromPath: `channels["kakao-talkchannel"].allowFrom`,
       approveHint: "openclaw pairing approve kakao-talkchannel <userId>",
       normalizeEntry: (raw: string) =>
         raw.trim().replace(/^(kakao|kakaotalk):/i, "").trim(),
@@ -47,11 +47,8 @@ export const securityAdapter = {
       );
     }
 
-    if (talkchannel.config.mode === "relay" && !talkchannel.config.relayToken) {
-      warnings.push(
-        "- Kakao relay mode: relayToken is not configured. " +
-          "Messages cannot be received without authentication."
-      );
+    if (!talkchannel.config.relayToken && !talkchannel.config.sessionToken) {
+      // Not a warning in simplified mode - session can be auto-created
     }
 
     return warnings;

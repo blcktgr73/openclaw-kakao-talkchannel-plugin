@@ -29,8 +29,9 @@ pnpm install && pnpm build
 channels:
   kakao-talkchannel:
     enabled: true
-    mode: relay
 ```
+
+That's it! Token and relayUrl are configured automatically.
 
 ### 3. Connect
 
@@ -44,19 +45,7 @@ OpenClaw: Search for [Channel Name] in KakaoTalk and
 
 Type `/pair ABCD-1234` in KakaoTalk → Connected!
 
-## Connection Modes
-
-### Relay Mode (Recommended)
-
-Works behind NAT/firewall.
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-    mode: relay
-    # That's it! Token is auto-generated.
-```
+## Configuration Options
 
 **Advanced Settings** (Optional):
 
@@ -64,35 +53,15 @@ channels:
 channels:
   kakao-talkchannel:
     enabled: true
-    mode: relay
-    talkchannels:
-      default:
-        relayUrl: "https://custom-relay.example.com"  # Default: https://k.tess.dev/
-        relayToken: "your-token"  # Manual token (or use OPENCLAW_TALKCHANNEL_RELAY_TOKEN env)
+    channelId: "@example"  # Optional: for channel identification
+    relayUrl: "https://custom-relay.example.com"  # Default: https://k.tess.dev/
+    relayToken: "your-token"  # Optional: or use OPENCLAW_TALKCHANNEL_RELAY_TOKEN env
 ```
-
-### Direct Mode
-
-For servers with public endpoints.
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-    mode: direct
-    talkchannels:
-      default:
-        channelId: "YOUR_KAKAO_CHANNEL_ID"
-        publicWebhookUrl: "https://your-server.com/kakao-talkchannel/webhook"
-        dmPolicy: pairing
-```
-
-## Configuration Options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `mode` | string | `"direct"` | Connection mode (`direct` \| `relay`) |
-| `channelId` | string | - | Direct mode: required, Relay mode: optional |
+| `enabled` | boolean | `true` | Enable plugin |
+| `channelId` | string | - | Channel identifier (optional) |
 | `relayUrl` | string | `"https://k.tess.dev/"` | Relay server URL |
 | `relayToken` | string | - | Relay auth token (auto-generated if not set) |
 | `dmPolicy` | string | `"pairing"` | DM policy |
@@ -110,11 +79,16 @@ channels:
 ## Kakao Open Builder Setup
 
 1. Create a channel at [Kakao Business](https://business.kakao.com)
-2. Add skill server in Open Builder:
-   - **Relay Mode**: `https://k.tess.dev/kakao-talkchannel/webhook`
-   - **Direct Mode**: `https://your-server.com/kakao-talkchannel/webhook`
+2. Add skill server in Open Builder: `https://k.tess.dev/kakao-talkchannel/webhook`
 3. Connect skill to fallback block
 4. Deploy
+
+## Planned Features
+
+The following features are planned for future releases:
+
+- **Direct Mode**: Direct webhook reception (requires public server)
+- **Multi-Channel Support**: Connect multiple KakaoTalk channels simultaneously
 
 ## Development
 

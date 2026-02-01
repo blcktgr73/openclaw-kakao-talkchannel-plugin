@@ -1,8 +1,8 @@
 /**
- * Kakao Channel Plugin
- * 
- * Main plugin export that integrates all adapters and configuration.
- * Implements ChannelPlugin interface for OpenClaw plugin system.
+ * Kakao Channel Plugin (Simplified)
+ *
+ * Single channel, relay mode only.
+ * Integrates all adapters and configuration.
  */
 
 import type { ResolvedKakaoTalkChannel } from "./types.js";
@@ -31,9 +31,9 @@ const meta = {
 export const kakaoPlugin = {
   id: "kakao-talkchannel",
   meta,
-  
+
   pairing: pairingAdapter,
-  
+
   capabilities: {
     chatTypes: ["direct"] as const,
     reactions: false,
@@ -42,13 +42,13 @@ export const kakaoPlugin = {
     nativeCommands: false,
     blockStreaming: true,
   },
-  
+
   reload: { configPrefixes: ["channels.kakao-talkchannel"] },
-  
+
   configSchema: {
     schema: KakaoChannelConfigSchema,
   },
-  
+
   config: configAdapter,
   security: securityAdapter,
   outbound: outboundAdapter,

@@ -1,12 +1,7 @@
 /**
- * ChannelStatusAdapter tests
+ * ChannelStatusAdapter tests (Simplified)
  *
- * Tests for statusAdapter implementation with 8+ test cases covering:
- * - defaultRuntime: default runtime state
- * - probeTalkChannel: health check for relay/direct modes
- * - buildTalkChannelSnapshot: build talkchannel snapshot from talkchannel + runtime + probe
- * - collectStatusIssues: collect status issues from snapshots
- * - Edge cases: disabled talkchannels, relay errors, message silence
+ * Relay mode only status monitoring.
  */
 import { describe, it, expect, vi } from "vitest";
 import { statusAdapter } from "../../../src/adapters/status";
@@ -16,7 +11,7 @@ import type {
 } from "../../../src/adapters/status";
 import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 
-describe("ChannelStatusAdapter", () => {
+describe("ChannelStatusAdapter (Simplified)", () => {
   describe("defaultRuntime", () => {
     it("should provide default runtime with all null/false values", () => {
       const runtime = statusAdapter.defaultRuntime;
@@ -37,43 +32,20 @@ describe("ChannelStatusAdapter", () => {
   });
 
   describe("probeTalkChannel", () => {
-    it("should return ok=true for direct mode talkchannels", async () => {
+    it("should probe relay server health endpoint", async () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "direct-account",
-        enabled: true,
-        name: "Direct Channel",
-        config: {
-          enabled: true,
-          channelId: "ch123",
-          mode: "direct",
-          dmPolicy: "pairing",
-          publicWebhookUrl: "https://example.com/webhook",
-          webhookPath: "/kakao",
-        },
-      };
-
-      const result = await statusAdapter.probeTalkChannel({ talkchannel });
-
-      expect(result.ok).toBe(true);
-      expect(result.error).toBeUndefined();
-    });
-
-    it("should probe relay server for relay mode talkchannels", async () => {
-      const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "relay-account",
+        talkchannelId: "default",
         enabled: true,
         name: "Relay Channel",
         config: {
           enabled: true,
           channelId: "ch456",
-          mode: "relay",
           dmPolicy: "open",
           relayUrl: "https://relay.example.com",
           relayToken: "token123",
         },
       };
 
-      // Mock fetch for relay health check
       global.fetch = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
@@ -94,13 +66,12 @@ describe("ChannelStatusAdapter", () => {
 
     it("should return error when relay server is unreachable", async () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "relay-account",
+        talkchannelId: "default",
         enabled: true,
         name: "Relay Channel",
         config: {
           enabled: true,
           channelId: "ch456",
-          mode: "relay",
           dmPolicy: "open",
           relayUrl: "https://relay.example.com",
           relayToken: "token123",
@@ -117,13 +88,12 @@ describe("ChannelStatusAdapter", () => {
 
     it("should return error when relay server returns non-200 status", async () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "relay-account",
+        talkchannelId: "default",
         enabled: true,
         name: "Relay Channel",
         config: {
           enabled: true,
           channelId: "ch456",
-          mode: "relay",
           dmPolicy: "open",
           relayUrl: "https://relay.example.com",
           relayToken: "token123",
@@ -143,13 +113,12 @@ describe("ChannelStatusAdapter", () => {
 
     it("should return error when relay URL is not configured", async () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "relay-account",
+        talkchannelId: "default",
         enabled: true,
         name: "Relay Channel",
         config: {
           enabled: true,
           channelId: "ch456",
-          mode: "relay",
           dmPolicy: "open",
           // relayUrl is missing
         },
@@ -165,19 +134,19 @@ describe("ChannelStatusAdapter", () => {
   describe("buildTalkChannelSnapshot", () => {
     it("should build snapshot with all fields from talkchannel and runtime", () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "acc123",
+        talkchannelId: "default",
         enabled: true,
         name: "Test Channel",
         config: {
           enabled: true,
           channelId: "ch123",
-          mode: "direct",
           dmPolicy: "pairing",
+          relayUrl: "https://relay.example.com",
         },
       };
 
       const runtime: TalkChannelRuntime = {
-        talkchannelId: "acc123",
+        talkchannelId: "default",
         running: true,
         lastStartAt: "2025-01-31T10:00:00Z",
         lastStopAt: null,
@@ -189,16 +158,15 @@ describe("ChannelStatusAdapter", () => {
       const probe = { ok: true, latencyMs: 45 };
 
       const snapshot = statusAdapter.buildTalkChannelSnapshot({
-        talkchannel: talkchannel,
+        talkchannel,
         runtime,
         probe,
       });
 
-      expect(snapshot.talkchannelId).toBe("acc123");
+      expect(snapshot.talkchannelId).toBe("default");
       expect(snapshot.name).toBe("ch123");
       expect(snapshot.enabled).toBe(true);
       expect(snapshot.configured).toBe(true);
-      expect(snapshot.mode).toBe("direct");
       expect(snapshot.running).toBe(true);
       expect(snapshot.lastStartAt).toBe("2025-01-31T10:00:00Z");
       expect(snapshot.lastStopAt).toBeNull();
@@ -210,19 +178,18 @@ describe("ChannelStatusAdapter", () => {
 
     it("should use default values when runtime is not provided", () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "acc456",
+        talkchannelId: "default",
         enabled: false,
         config: {
           enabled: false,
           channelId: "ch456",
-          mode: "relay",
           dmPolicy: "open",
         },
       };
 
       const snapshot = statusAdapter.buildTalkChannelSnapshot({ talkchannel });
 
-      expect(snapshot.talkchannelId).toBe("acc456");
+      expect(snapshot.talkchannelId).toBe("default");
       expect(snapshot.enabled).toBe(false);
       expect(snapshot.running).toBe(false);
       expect(snapshot.lastStartAt).toBeNull();
@@ -232,15 +199,14 @@ describe("ChannelStatusAdapter", () => {
       expect(snapshot.lastOutboundAt).toBeUndefined();
     });
 
-    it("should mark as configured when channelId is present", () => {
+    it("should mark as configured when relayUrl is present", () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "acc789",
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
-          channelId: "ch789",
-          mode: "direct",
           dmPolicy: "pairing",
+          relayUrl: "https://relay.example.com",
         },
       };
 
@@ -249,15 +215,14 @@ describe("ChannelStatusAdapter", () => {
       expect(snapshot.configured).toBe(true);
     });
 
-    it("should mark as not configured when channelId is empty", () => {
+    it("should mark as not configured when relayUrl is empty", () => {
       const talkchannel: ResolvedKakaoTalkChannel = {
-        talkchannelId: "acc000",
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
-          channelId: "",
-          mode: "direct",
           dmPolicy: "pairing",
+          relayUrl: "",
         },
       };
 
@@ -271,11 +236,10 @@ describe("ChannelStatusAdapter", () => {
     it("should warn when talkchannel is configured but disabled", () => {
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc1",
+          talkchannelId: "default",
           name: "Channel 1",
           enabled: false,
           configured: true,
-          mode: "direct",
           running: false,
           lastStartAt: null,
           lastStopAt: null,
@@ -289,7 +253,7 @@ describe("ChannelStatusAdapter", () => {
         expect.objectContaining({
           level: "warn",
           message: expect.stringContaining("configured but disabled"),
-          talkchannelId: "acc1",
+          talkchannelId: "default",
         })
       );
     });
@@ -297,11 +261,10 @@ describe("ChannelStatusAdapter", () => {
     it("should error when relay server is unreachable", () => {
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc2",
+          talkchannelId: "default",
           name: "Relay Channel",
           enabled: true,
           configured: true,
-          mode: "relay",
           running: true,
           lastStartAt: "2025-01-31T10:00:00Z",
           lastStopAt: null,
@@ -316,7 +279,7 @@ describe("ChannelStatusAdapter", () => {
         expect.objectContaining({
           level: "error",
           message: expect.stringContaining("relay server unreachable"),
-          talkchannelId: "acc2",
+          talkchannelId: "default",
         })
       );
     });
@@ -326,11 +289,10 @@ describe("ChannelStatusAdapter", () => {
 
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc3",
+          talkchannelId: "default",
           name: "Silent Channel",
           enabled: true,
           configured: true,
-          mode: "direct",
           running: true,
           lastStartAt: "2025-01-31T09:00:00Z",
           lastStopAt: null,
@@ -345,7 +307,7 @@ describe("ChannelStatusAdapter", () => {
         expect.objectContaining({
           level: "warn",
           message: expect.stringContaining("has not received messages"),
-          talkchannelId: "acc3",
+          talkchannelId: "default",
         })
       );
     });
@@ -355,11 +317,10 @@ describe("ChannelStatusAdapter", () => {
 
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc4",
+          talkchannelId: "default",
           name: "Active Channel",
           enabled: true,
           configured: true,
-          mode: "direct",
           running: true,
           lastStartAt: "2025-01-31T09:00:00Z",
           lastStopAt: null,
@@ -381,11 +342,10 @@ describe("ChannelStatusAdapter", () => {
 
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc5",
+          talkchannelId: "default",
           name: "Stopped Channel",
           enabled: true,
           configured: true,
-          mode: "direct",
           running: false,
           lastStartAt: "2025-01-31T09:00:00Z",
           lastStopAt: "2025-01-31T09:30:00Z",
@@ -402,78 +362,13 @@ describe("ChannelStatusAdapter", () => {
       expect(silenceWarnings).toHaveLength(0);
     });
 
-    it("should collect multiple issues from multiple talkchannels", () => {
-      const thirtyMinutesAgo = new Date(Date.now() - 31 * 60 * 1000).toISOString();
-
-      const talkchannels: ChannelTalkChannelSnapshot[] = [
-        {
-          talkchannelId: "acc6",
-          name: "Disabled Channel",
-          enabled: false,
-          configured: true,
-          mode: "direct",
-          running: false,
-          lastStartAt: null,
-          lastStopAt: null,
-          lastError: null,
-        },
-        {
-          talkchannelId: "acc7",
-          name: "Relay Channel",
-          enabled: true,
-          configured: true,
-          mode: "relay",
-          running: true,
-          lastStartAt: "2025-01-31T10:00:00Z",
-          lastStopAt: null,
-          lastError: null,
-          probe: { ok: false, error: "Timeout" },
-        },
-        {
-          talkchannelId: "acc8",
-          name: "Silent Channel",
-          enabled: true,
-          configured: true,
-          mode: "direct",
-          running: true,
-          lastStartAt: "2025-01-31T09:00:00Z",
-          lastStopAt: null,
-          lastError: null,
-          lastInboundAt: thirtyMinutesAgo,
-        },
-      ];
-
-      const issues = statusAdapter.collectStatusIssues(talkchannels);
-
-      expect(issues.length).toBeGreaterThanOrEqual(3);
-      expect(issues).toContainEqual(
-        expect.objectContaining({
-          level: "warn",
-          talkchannelId: "acc6",
-        })
-      );
-      expect(issues).toContainEqual(
-        expect.objectContaining({
-          level: "error",
-          talkchannelId: "acc7",
-        })
-      );
-      expect(issues).toContainEqual(
-        expect.objectContaining({
-          level: "warn",
-          talkchannelId: "acc8",
-        })
-      );
-    });
-
     it("should return empty array when all talkchannels are healthy", () => {
       const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          talkchannelId: "acc9",
+          talkchannelId: "default",
           name: "Healthy Channel",
           enabled: true,
           configured: true,
-          mode: "direct",
           running: true,
           lastStartAt: "2025-01-31T10:00:00Z",
           lastStopAt: null,

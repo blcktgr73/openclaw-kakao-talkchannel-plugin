@@ -1,38 +1,18 @@
 /**
- * Kakao Plugin Entry Point
+ * Kakao Plugin Entry Point (Simplified)
  *
- * Main plugin export for OpenClaw Kakao channel integration.
+ * Single channel, relay mode only.
+ * No direct mode webhook registration.
  */
 
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { kakaoPlugin } from "./src/channel.js";
-import { setKakaoRuntime, getKakaoRuntime } from "./src/runtime.js";
-import { resolveKakaoTalkChannel } from "./src/config/talkchannels.js";
-import { createWebhookHandler } from "./src/kakao/webhook-handler.js";
-import { buildSimpleTextResponse } from "./src/kakao/response.js";
-
-interface HttpRequest {
-  body: unknown;
-  method: string;
-  url: string;
-}
-
-interface HttpResponse {
-  statusCode: number;
-  end: (body: string) => void;
-  setHeader: (name: string, value: string) => void;
-}
-
-interface HttpRouteOptions {
-  path: string;
-  handler: (req: HttpRequest, res: HttpResponse) => Promise<void>;
-}
+import { setKakaoRuntime } from "./src/runtime.js";
 
 interface OpenClawPluginApi {
   runtime: PluginRuntime;
   config: unknown;
   registerChannel: (opts: { plugin: unknown }) => void;
-  registerHttpRoute?: (opts: HttpRouteOptions) => void;
 }
 
 const plugin = {
@@ -40,45 +20,10 @@ const plugin = {
   name: "Kakao TalkChannel",
   description: "Kakao TalkChannel plugin for OpenClaw",
   configSchema: {},
-  
+
   register(api: OpenClawPluginApi): void {
     setKakaoRuntime(api.runtime);
     api.registerChannel({ plugin: kakaoPlugin });
-
-    if (api.registerHttpRoute) {
-      api.registerHttpRoute({
-        path: "/kakao-talkchannel/webhook",
-        handler: async (req, res) => {
-          try {
-            const talkchannel = resolveKakaoTalkChannel(api.config, "default");
-
-            if (talkchannel.config.mode !== "direct") {
-              res.statusCode = 404;
-              res.end(JSON.stringify({ error: "Direct mode not enabled" }));
-              return;
-            }
-
-            const handler = createWebhookHandler(talkchannel, async (payload) => {
-              return `메시지를 받았습니다: ${payload.userRequest.utterance}`;
-            });
-
-            const response = await handler(req.body);
-            res.setHeader("Content-Type", "application/json");
-            res.statusCode = 200;
-            res.end(JSON.stringify(response));
-          } catch (error) {
-            const runtime = getKakaoRuntime();
-            runtime.logger.error(`Webhook error: ${error}`);
-            res.statusCode = 500;
-            res.end(
-              JSON.stringify(
-                buildSimpleTextResponse("죄송합니다. 오류가 발생했습니다.")
-              )
-            );
-          }
-        },
-      });
-    }
   },
 };
 

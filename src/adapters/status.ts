@@ -1,8 +1,7 @@
 /**
- * Kakao Channel Status Adapter
+ * Kakao Channel Status Adapter (Simplified)
  *
- * Provides status monitoring and health checks for Kakao TalkChannels.
- * Supports both direct and relay modes with probe capabilities.
+ * Relay mode only status monitoring.
  */
 
 import type { ResolvedKakaoTalkChannel } from "../types.js";
@@ -12,7 +11,6 @@ export interface ChannelTalkChannelSnapshot {
   name?: string;
   enabled: boolean;
   configured: boolean;
-  mode: "direct" | "relay";
   running: boolean;
   lastStartAt: string | null;
   lastStopAt: string | null;
@@ -53,29 +51,25 @@ export const statusAdapter = {
   }): Promise<{ ok: boolean; latencyMs?: number; error?: string }> => {
     const { talkchannel, timeoutMs = 5000 } = ctx;
 
-    if (talkchannel.config.mode === "relay") {
-      if (!talkchannel.config.relayUrl) {
-        return { ok: false, error: "relayUrl not configured" };
-      }
-
-      const start = Date.now();
-      try {
-        const response = await fetch(`${talkchannel.config.relayUrl}/health`, {
-          method: "GET",
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-
-        if (!response.ok) {
-          return { ok: false, error: `HTTP ${response.status}` };
-        }
-
-        return { ok: true, latencyMs: Date.now() - start };
-      } catch (error) {
-        return { ok: false, error: String(error) };
-      }
+    if (!talkchannel.config.relayUrl) {
+      return { ok: false, error: "relayUrl not configured" };
     }
 
-    return { ok: true };
+    const start = Date.now();
+    try {
+      const response = await fetch(`${talkchannel.config.relayUrl}/health`, {
+        method: "GET",
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+
+      if (!response.ok) {
+        return { ok: false, error: `HTTP ${response.status}` };
+      }
+
+      return { ok: true, latencyMs: Date.now() - start };
+    } catch (error) {
+      return { ok: false, error: String(error) };
+    }
   },
 
   buildTalkChannelSnapshot: (ctx: {
@@ -89,8 +83,7 @@ export const statusAdapter = {
       talkchannelId: talkchannel.talkchannelId,
       name: talkchannel.config.channelId,
       enabled: talkchannel.config.enabled,
-      configured: Boolean(talkchannel.config.channelId),
-      mode: talkchannel.config.mode,
+      configured: Boolean(talkchannel.config.relayUrl),
       running: runtime?.running ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,
       lastStopAt: runtime?.lastStopAt ?? null,
@@ -115,7 +108,7 @@ export const statusAdapter = {
         });
       }
 
-      if (talkchannel.mode === "relay" && talkchannel.probe && !talkchannel.probe.ok) {
+      if (talkchannel.probe && !talkchannel.probe.ok) {
         issues.push({
           level: "error",
           message: `Kakao relay server unreachable: ${talkchannel.probe.error}`,

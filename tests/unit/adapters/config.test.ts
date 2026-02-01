@@ -1,67 +1,39 @@
 /**
- * ChannelConfigAdapter tests
- * 
- * Tests for configAdapter implementation with 6+ test cases covering:
- * - listTalkChannelIds: extract talkchannel IDs from config
- * - resolveTalkChannel: resolve account with validation
- * - defaultTalkChannelId: return default or first account
- * - isConfigured: check if talkchannel has channelId
- * - isEnabled: check if talkchannel is enabled
- * - Edge cases: missing config, empty talkchannels, disabled talkchannels
+ * ChannelConfigAdapter tests (Simplified)
+ *
+ * Single channel, relay mode only.
  */
 import { describe, it, expect } from "vitest";
 import { configAdapter } from "../../../src/adapters/config";
 
-describe("ChannelConfigAdapter", () => {
+describe("ChannelConfigAdapter (Simplified)", () => {
   describe("listTalkChannelIds", () => {
-    it("should return array of talkchannel IDs from valid config", () => {
+    it("should return ['default'] for valid config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-              secondary: {
-                enabled: false,
-                channelId: "channel456",
-                mode: "relay" as const,
-                dmPolicy: "open" as const,
-              },
-            },
+            enabled: true,
           },
         },
       };
 
       const ids = configAdapter.listTalkChannelIds(cfg);
-
-      expect(ids).toEqual(["default", "secondary"]);
+      expect(ids).toEqual(["default"]);
     });
 
-    it("should return empty array when no talkchannels configured", () => {
-      const cfg = {
-        channels: {
-          "kakao-talkchannel": {
-            talkchannels: {},
-          },
-        },
-      };
-
-      const ids = configAdapter.listTalkChannelIds(cfg);
-
-      expect(ids).toEqual([]);
-    });
-
-    it("should return empty array when config is missing kakao channel", () => {
+    it("should return empty array when kakao channel not configured", () => {
       const cfg = {
         channels: {},
       };
 
       const ids = configAdapter.listTalkChannelIds(cfg);
+      expect(ids).toEqual([]);
+    });
 
+    it("should return empty array when channels missing", () => {
+      const cfg = {};
+
+      const ids = configAdapter.listTalkChannelIds(cfg);
       expect(ids).toEqual([]);
     });
 
@@ -72,18 +44,13 @@ describe("ChannelConfigAdapter", () => {
   });
 
   describe("resolveTalkChannel", () => {
-    it("should resolve account with valid config", () => {
+    it("should resolve talkchannel with valid config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-            },
+            enabled: true,
+            channelId: "channel123",
+            dmPolicy: "pairing",
           },
         },
       };
@@ -96,39 +63,100 @@ describe("ChannelConfigAdapter", () => {
       expect(talkchannel.enabled).toBe(true);
     });
 
-    it("should throw error when talkchannel not found", () => {
+    it("should apply schema defaults when resolving", () => {
+      const cfg = {
+        channels: {
+          "kakao-talkchannel": {},
+        },
+      };
+
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+
+      expect(talkchannel.config.enabled).toBe(true);
+      expect(talkchannel.config.dmPolicy).toBe("pairing");
+      expect(talkchannel.config.relayUrl).toBe("https://k.tess.dev/");
+      expect(talkchannel.config.reconnectDelayMs).toBe(1000);
+      expect(talkchannel.config.maxReconnectDelayMs).toBe(30000);
+      expect(talkchannel.config.callbackTimeoutMs).toBe(55000);
+    });
+
+    it("should throw error when kakao channel not configured", () => {
+      const cfg = {
+        channels: {},
+      };
+
+      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow(
+        /kakao.*not configured/i
+      );
+    });
+
+    it("should throw error when channels missing", () => {
+      const cfg = {};
+
+      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow(
+        /kakao.*not configured/i
+      );
+    });
+
+    it("should resolve relay mode settings", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-            },
+            enabled: true,
+            channelId: "relay_ch",
+            relayUrl: "https://relay.example.com",
+            relayToken: "secret_token",
+            reconnectDelayMs: 2000,
+            maxReconnectDelayMs: 15000,
+            dmPolicy: "open",
           },
         },
       };
 
-      expect(() => configAdapter.resolveTalkChannel(cfg, "nonexistent")).toThrow(
-        /not found/i
-      );
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+
+      expect(talkchannel.talkchannelId).toBe("default");
+      expect(talkchannel.config.relayUrl).toBe("https://relay.example.com");
+      expect(talkchannel.config.relayToken).toBe("secret_token");
+      expect(talkchannel.config.reconnectDelayMs).toBe(2000);
+      expect(talkchannel.config.maxReconnectDelayMs).toBe(15000);
     });
 
-    it("should throw error when config is invalid", () => {
+    it("should set enabled field based on config.enabled", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                // Missing required channelId
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-            },
+            enabled: false,
+          },
+        },
+      };
+
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+
+      expect(talkchannel.enabled).toBe(false);
+      expect(talkchannel.config.enabled).toBe(false);
+    });
+
+    it("should include optional name field when present", () => {
+      const cfg = {
+        channels: {
+          "kakao-talkchannel": {
+            enabled: true,
+            name: "My Kakao Bot",
+          },
+        },
+      };
+
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+
+      expect(talkchannel.name).toBe("My Kakao Bot");
+    });
+
+    it("should throw error on invalid config data", () => {
+      const cfg = {
+        channels: {
+          "kakao-talkchannel": {
+            channelId: "", // empty channelId is invalid
           },
         },
       };
@@ -138,83 +166,36 @@ describe("ChannelConfigAdapter", () => {
   });
 
   describe("defaultTalkChannelId", () => {
-    it("should return 'default' when it exists", () => {
+    it("should always return 'default'", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-              secondary: {
-                enabled: true,
-                channelId: "channel456",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-            },
+            enabled: true,
           },
         },
       };
 
       const id = configAdapter.defaultTalkChannelId(cfg);
-
       expect(id).toBe("default");
     });
 
-    it("should return first account ID when 'default' does not exist", () => {
+    it("should throw error when kakao channel not configured", () => {
       const cfg = {
-        channels: {
-          "kakao-talkchannel": {
-            talkchannels: {
-              primary: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-              secondary: {
-                enabled: true,
-                channelId: "channel456",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-            },
-          },
-        },
-      };
-
-      const id = configAdapter.defaultTalkChannelId(cfg);
-
-      expect(id).toBe("primary");
-    });
-
-    it("should throw error when no talkchannels configured", () => {
-      const cfg = {
-        channels: {
-          "kakao-talkchannel": {
-            talkchannels: {},
-          },
-        },
+        channels: {},
       };
 
       expect(() => configAdapter.defaultTalkChannelId(cfg)).toThrow(
-        /no.*talkchannels/i
+        /no.*kakao.*talkchannel.*configured/i
       );
     });
   });
 
   describe("isConfigured", () => {
-    it("should return true when talkchannel has channelId", () => {
+    it("should always return true for relay mode (can auto-create session)", () => {
       const talkchannel = {
         talkchannelId: "default",
         config: {
           enabled: true,
-          channelId: "channel123",
-          mode: "direct" as const,
           dmPolicy: "pairing" as const,
         },
         enabled: true,
@@ -223,34 +204,32 @@ describe("ChannelConfigAdapter", () => {
       expect(configAdapter.isConfigured(talkchannel)).toBe(true);
     });
 
-    it("should return false when talkchannel has empty channelId", () => {
+    it("should return true when sessionToken is set", () => {
       const talkchannel = {
         talkchannelId: "default",
         config: {
           enabled: true,
-          channelId: "",
-          mode: "direct" as const,
           dmPolicy: "pairing" as const,
+          sessionToken: "session123",
         },
         enabled: true,
       };
 
-      expect(configAdapter.isConfigured(talkchannel)).toBe(false);
+      expect(configAdapter.isConfigured(talkchannel)).toBe(true);
     });
 
-    it("should return false when talkchannel has no channelId", () => {
+    it("should return true when relayToken is set", () => {
       const talkchannel = {
         talkchannelId: "default",
         config: {
           enabled: true,
-          channelId: undefined as any,
-          mode: "direct" as const,
           dmPolicy: "pairing" as const,
+          relayToken: "token123",
         },
         enabled: true,
       };
 
-      expect(configAdapter.isConfigured(talkchannel)).toBe(false);
+      expect(configAdapter.isConfigured(talkchannel)).toBe(true);
     });
   });
 
@@ -260,8 +239,6 @@ describe("ChannelConfigAdapter", () => {
         talkchannelId: "default",
         config: {
           enabled: true,
-          channelId: "channel123",
-          mode: "direct" as const,
           dmPolicy: "pairing" as const,
         },
         enabled: true,
@@ -275,8 +252,6 @@ describe("ChannelConfigAdapter", () => {
         talkchannelId: "default",
         config: {
           enabled: false,
-          channelId: "channel123",
-          mode: "direct" as const,
           dmPolicy: "pairing" as const,
         },
         enabled: false,
@@ -284,62 +259,30 @@ describe("ChannelConfigAdapter", () => {
 
       expect(configAdapter.isEnabled(talkchannel)).toBe(false);
     });
-
-    it("should return false when config.enabled is false", () => {
-      const talkchannel = {
-        talkchannelId: "default",
-        config: {
-          enabled: false,
-          channelId: "channel123",
-          mode: "direct" as const,
-          dmPolicy: "pairing" as const,
-        },
-        enabled: true,
-      };
-
-      expect(configAdapter.isEnabled(talkchannel)).toBe(false);
-    });
   });
 
   describe("Integration: Full workflow", () => {
-    it("should list, resolve, and check status of accounts", () => {
+    it("should list, resolve, and check status of single channel", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            talkchannels: {
-              default: {
-                enabled: true,
-                channelId: "channel123",
-                mode: "direct" as const,
-                dmPolicy: "pairing" as const,
-              },
-              secondary: {
-                enabled: false,
-                channelId: "channel456",
-                mode: "relay" as const,
-                dmPolicy: "open" as const,
-              },
-            },
+            enabled: true,
+            channelId: "channel123",
+            dmPolicy: "pairing",
           },
         },
       };
 
-      // List accounts
+      // List talkchannels
       const ids = configAdapter.listTalkChannelIds(cfg);
-      expect(ids).toContain("default");
-      expect(ids).toContain("secondary");
+      expect(ids).toEqual(["default"]);
 
-      // Resolve default account
-      const defaultTalkChannel = configAdapter.resolveTalkChannel(cfg, "default");
-      expect(configAdapter.isConfigured(defaultTalkChannel)).toBe(true);
-      expect(configAdapter.isEnabled(defaultTalkChannel)).toBe(true);
+      // Resolve channel
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      expect(configAdapter.isConfigured(talkchannel)).toBe(true);
+      expect(configAdapter.isEnabled(talkchannel)).toBe(true);
 
-      // Resolve secondary account
-      const secondaryTalkChannel = configAdapter.resolveTalkChannel(cfg, "secondary");
-      expect(configAdapter.isConfigured(secondaryTalkChannel)).toBe(true);
-      expect(configAdapter.isEnabled(secondaryTalkChannel)).toBe(false);
-
-      // Get default account ID
+      // Get default talkchannel ID
       const defaultId = configAdapter.defaultTalkChannelId(cfg);
       expect(defaultId).toBe("default");
     });

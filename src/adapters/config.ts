@@ -1,75 +1,105 @@
 /**
- * Kakao Channel Config Adapter
+ * Kakao Channel Config Adapter (Simplified)
  *
- * Implements ChannelConfigAdapter interface for Kakao plugin configuration.
- * Provides methods to:
- * - List configured talkchannel IDs
- * - Resolve individual talkchannels with validation
- * - Get default talkchannel ID
- * - Check talkchannel configuration and enabled status
- *
- * Reference: docs/implementation-plan.md Section 4.1 (lines 371-381)
+ * Single channel, relay mode only.
+ * Internally uses talkchannelId='default' for future extensibility.
  */
 
-import type { ResolvedKakaoTalkChannel } from "../types.js";
-import { resolveKakaoTalkChannel, listKakaoTalkChannelIds, getDefaultTalkChannelId } from "../config/talkchannels.js";
+import type { ResolvedKakaoTalkChannel, KakaoChannelConfig } from "../types.js";
+import { KakaoChannelConfigSchema } from "../config/schema.js";
 
 /**
  * ChannelConfigAdapter interface
- *
- * Generic adapter for channel configuration management.
- * Provides abstraction for talkchannel resolution and status checking.
  */
 export interface ChannelConfigAdapter<T> {
-  /**
-   * List all configured talkchannel IDs
-   * @param cfg - Plugin configuration object
-   * @returns Array of talkchannel IDs (empty if none configured)
-   */
   listTalkChannelIds: (cfg: unknown) => string[];
-
-  /**
-   * Resolve a specific talkchannel from configuration
-   * @param cfg - Plugin configuration object
-   * @param talkchannelId - TalkChannel identifier
-   * @returns Resolved talkchannel with validated configuration
-   * @throws Error if talkchannel not found or config invalid
-   */
   resolveTalkChannel: (cfg: unknown, talkchannelId: string) => T;
-
-  /**
-   * Get the default talkchannel ID
-   * @param cfg - Plugin configuration object
-   * @returns Default talkchannel ID ("default" if exists, otherwise first talkchannel)
-   * @throws Error if no talkchannels configured
-   */
   defaultTalkChannelId: (cfg: unknown) => string;
-
-  /**
-   * Check if talkchannel is properly configured
-   * @param talkchannel - Resolved talkchannel
-   * @returns True if talkchannel has required channelId
-   */
   isConfigured: (talkchannel: T) => boolean;
-
-  /**
-   * Check if talkchannel is enabled
-   * @param talkchannel - Resolved talkchannel
-   * @returns True if talkchannel is enabled
-   */
   isEnabled: (talkchannel: T) => boolean;
 }
 
 /**
- * Kakao channel configuration adapter
- *
- * Implements ChannelConfigAdapter for ResolvedKakaoTalkChannel.
- * Uses talkchannel resolution from src/config/talkchannels.ts.
+ * Extract Kakao channel config from plugin config
+ */
+function getKakaoChannelConfig(cfg: unknown): KakaoChannelConfig | undefined {
+  if (!cfg || typeof cfg !== "object") {
+    return undefined;
+  }
+
+  const configObj = cfg as Record<string, unknown>;
+  const channels = configObj.channels;
+
+  if (!channels || typeof channels !== "object") {
+    return undefined;
+  }
+
+  const channelsObj = channels as Record<string, unknown>;
+  const kakao = channelsObj["kakao-talkchannel"];
+
+  if (!kakao || typeof kakao !== "object") {
+    return undefined;
+  }
+
+  return kakao as KakaoChannelConfig;
+}
+
+/**
+ * Resolve Kakao TalkChannel from configuration
+ */
+function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): ResolvedKakaoTalkChannel {
+  const rawConfig = getKakaoChannelConfig(cfg);
+
+  if (!rawConfig) {
+    throw new Error(
+      "Kakao TalkChannel is not configured. " +
+      "Please add channels[\"kakao-talkchannel\"] section to your configuration."
+    );
+  }
+
+  // Validate and apply defaults using schema
+  const validationResult = KakaoChannelConfigSchema.safeParse(rawConfig);
+
+  if (!validationResult.success) {
+    const errors = validationResult.error.issues
+      .map((issue: { path: (string | number)[]; message: string }) => `${issue.path.join(".")}: ${issue.message}`)
+      .join("; ");
+    throw new Error(`Invalid Kakao TalkChannel configuration: ${errors}`);
+  }
+
+  const config = validationResult.data;
+
+  // Determine token source
+  let tokenSource: "config" | "env" | "session" | "none" = "none";
+  if (config.sessionToken) {
+    tokenSource = "session";
+  } else if (config.relayToken) {
+    tokenSource = "config";
+  } else if (process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN) {
+    tokenSource = "env";
+  }
+
+  return {
+    talkchannelId: "default", // Always "default" for single channel
+    config,
+    enabled: config.enabled,
+    name: (rawConfig as unknown as Record<string, unknown>).name as string | undefined,
+    channelId: config.channelId,
+    tokenSource,
+  };
+}
+
+/**
+ * Kakao channel configuration adapter (simplified)
  */
 export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
   listTalkChannelIds: (cfg) => {
     try {
-      return listKakaoTalkChannelIds(cfg);
+      const kakaoConfig = getKakaoChannelConfig(cfg);
+      if (!kakaoConfig) {
+        return [];
+      }
+      return ["default"]; // Always single channel
     } catch {
       return [];
     }
@@ -80,21 +110,24 @@ export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
   },
 
   defaultTalkChannelId: (cfg) => {
-    return getDefaultTalkChannelId(cfg);
+    const kakaoConfig = getKakaoChannelConfig(cfg);
+    if (!kakaoConfig) {
+      throw new Error(
+        "No Kakao TalkChannel configured. " +
+        "Please add channels[\"kakao-talkchannel\"] section to your configuration."
+      );
+    }
+    return "default"; // Always "default"
   },
 
   isConfigured: (talkchannel) => {
-    // For relay mode: configured if token available or can auto-create session
-    if (talkchannel.mode === "relay") {
-      return Boolean(
-        talkchannel.config.sessionToken ||
-        talkchannel.config.relayToken ||
-        process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
-        true // Can always auto-create session
-      );
-    }
-    // For direct mode: channelId is required
-    return Boolean(talkchannel.config.channelId);
+    // For relay mode: always configured (can auto-create session)
+    return Boolean(
+      talkchannel.config.sessionToken ||
+      talkchannel.config.relayToken ||
+      process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
+      true // Can always auto-create session
+    );
   },
 
   isEnabled: (talkchannel) => {

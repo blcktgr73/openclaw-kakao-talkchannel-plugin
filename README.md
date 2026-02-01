@@ -29,8 +29,9 @@ pnpm install && pnpm build
 channels:
   kakao-talkchannel:
     enabled: true
-    mode: relay
 ```
+
+그게 끝입니다! 토큰과 relayUrl은 자동으로 설정됩니다.
 
 ### 3. 연결하기
 
@@ -44,19 +45,7 @@ OpenClaw: 카카오톡에서 [채널명]을 검색하고
 
 카카오톡에서 `/pair ABCD-1234` 입력 → 연결 완료!
 
-## 연결 모드
-
-### Relay Mode (권장)
-
-NAT/방화벽 환경에서도 동작합니다.
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-    mode: relay
-    # 설정 끝! 토큰은 자동 생성됩니다.
-```
+## 설정 옵션
 
 **고급 설정** (선택):
 
@@ -64,35 +53,15 @@ channels:
 channels:
   kakao-talkchannel:
     enabled: true
-    mode: relay
-    talkchannels:
-      default:
-        relayUrl: "https://custom-relay.example.com"  # 기본: https://k.tess.dev/
-        relayToken: "your-token"  # 수동 토큰 (환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능)
+    channelId: "@example"  # 선택: 채널 식별용
+    relayUrl: "https://custom-relay.example.com"  # 기본: https://k.tess.dev/
+    relayToken: "your-token"  # 선택: 환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능
 ```
-
-### Direct Mode
-
-공개 서버가 있는 경우 직접 연결합니다.
-
-```yaml
-channels:
-  kakao-talkchannel:
-    enabled: true
-    mode: direct
-    talkchannels:
-      default:
-        channelId: "YOUR_KAKAO_CHANNEL_ID"
-        publicWebhookUrl: "https://your-server.com/kakao-talkchannel/webhook"
-        dmPolicy: pairing
-```
-
-## 설정 옵션
 
 | 옵션 | 타입 | 기본값 | 설명 |
 |------|------|--------|------|
-| `mode` | string | `"direct"` | 연결 모드 (`direct` \| `relay`) |
-| `channelId` | string | - | Direct 모드: 필수, Relay 모드: 선택 |
+| `enabled` | boolean | `true` | 플러그인 활성화 |
+| `channelId` | string | - | 채널 식별자 (선택) |
 | `relayUrl` | string | `"https://k.tess.dev/"` | Relay 서버 URL |
 | `relayToken` | string | - | Relay 인증 토큰 (자동 생성 가능) |
 | `dmPolicy` | string | `"pairing"` | DM 정책 |
@@ -110,11 +79,16 @@ channels:
 ## 카카오 오픈빌더 설정
 
 1. [카카오 비즈니스](https://business.kakao.com)에서 채널 생성
-2. 오픈빌더에서 스킬 서버 추가:
-   - **Relay Mode**: `https://k.tess.dev/kakao-talkchannel/webhook`
-   - **Direct Mode**: `https://your-server.com/kakao-talkchannel/webhook`
+2. 오픈빌더에서 스킬 서버 추가: `https://k.tess.dev/kakao-talkchannel/webhook`
 3. 폴백 블록에 스킬 연결
 4. 배포
+
+## 개발 예정
+
+다음 기능은 향후 개발 예정입니다:
+
+- **Direct 모드**: 웹훅 직접 수신 (공개 서버 필요)
+- **다중 채널 지원**: 여러 카카오톡 채널 동시 연결
 
 ## 개발
 
