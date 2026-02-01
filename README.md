@@ -4,9 +4,19 @@
 
 [English](./README.en.md)
 
-## 연결 방법
+## 설정
 
-플러그인 설치 후 별도 설정 없이 바로 사용 가능합니다.
+`~/.openclaw/config.yaml`에 다음을 추가:
+
+```yaml
+channels:
+  kakao-talkchannel:
+    accounts:
+      default:
+        enabled: true
+```
+
+## 연결 방법
 
 1. OpenClaw에게 "카카오톡 연결해줘" 요청
 2. OpenClaw가 pairing 코드 제공 (예: `ABCD-1234`)
@@ -27,20 +37,6 @@ channels:
         relayUrl: "https://..."    # 기본: https://k.tess.dev/
         relayToken: "..."          # 환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능
         dmPolicy: pairing          # pairing | allowlist | open | disabled
-```
-
-## 카카오 오픈빌더 설정
-
-1. [카카오 비즈니스](https://business.kakao.com)에서 채널 생성
-2. 오픈빌더 > 스킬 서버 추가: `https://k.tess.dev/kakao-talkchannel/webhook`
-3. 폴백 블록에 스킬 연결
-4. 배포
-
-## 개발
-
-```bash
-pnpm install && pnpm build
-pnpm test
 ```
 
 ## 라이선스
