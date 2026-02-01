@@ -44,7 +44,9 @@ export async function sendReply(
   const timeout = createTimeoutSignal(config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
 
   try {
-    const fetchResponse = await fetch(`${config.relayUrl}/reply`, {
+    // Normalize URL and use openclaw/reply endpoint
+    const baseUrl = config.relayUrl.endsWith("/") ? config.relayUrl : `${config.relayUrl}/`;
+    const fetchResponse = await fetch(`${baseUrl}openclaw/reply`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.relayToken}`,

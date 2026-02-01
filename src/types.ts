@@ -166,15 +166,14 @@ export interface ResolvedKakaoTalkChannel {
 
 export interface InboundMessage {
   id: string;
-  timestamp: number;
-  kakaoPayload: KakaoSkillPayload;
+  conversationKey: string;
+  kakaoPayload?: KakaoSkillPayload; // Optional: raw Kakao payload
   normalized: {
     userId: string;
     text: string;
     channelId: string;
   };
-  callbackUrl: string;
-  callbackExpiresAt: number;
+  createdAt: string; // ISO 8601
 }
 
 export type SSEEventType = "message" | "ping" | "error" | "pairing_complete" | "pairing_expired";

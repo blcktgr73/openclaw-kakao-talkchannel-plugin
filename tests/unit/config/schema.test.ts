@@ -1,17 +1,19 @@
 import { describe, it, expect } from "vitest";
 import {
+  KakaoAccountConfigSchema,
   KakaoChannelConfigSchema,
+  validateAccountConfig,
   validateChannelConfig,
 } from "../../../src/config/schema";
 
 describe("Config Schema (Simplified)", () => {
-  describe("KakaoChannelConfigSchema", () => {
+  describe("KakaoAccountConfigSchema", () => {
     it("should accept minimal relay mode config", () => {
       const config = {
         enabled: true,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.enabled).toBe(true);
@@ -31,7 +33,7 @@ describe("Config Schema (Simplified)", () => {
         maxReconnectDelayMs: 15000,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.relayUrl).toBe("https://relay.example.com");
@@ -44,7 +46,7 @@ describe("Config Schema (Simplified)", () => {
     it("should apply default values", () => {
       const config = {};
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.enabled).toBe(true);
@@ -61,7 +63,7 @@ describe("Config Schema (Simplified)", () => {
         enabled: true,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.channelId).toBeUndefined();
@@ -73,7 +75,7 @@ describe("Config Schema (Simplified)", () => {
         channelId: "",
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -82,7 +84,7 @@ describe("Config Schema (Simplified)", () => {
         dmPolicy: "invalid",
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -91,7 +93,7 @@ describe("Config Schema (Simplified)", () => {
         reconnectDelayMs: 100,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -100,7 +102,7 @@ describe("Config Schema (Simplified)", () => {
         reconnectDelayMs: 60000,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -109,7 +111,7 @@ describe("Config Schema (Simplified)", () => {
         maxReconnectDelayMs: 1000,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -118,7 +120,7 @@ describe("Config Schema (Simplified)", () => {
         maxReconnectDelayMs: 120000,
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -127,7 +129,7 @@ describe("Config Schema (Simplified)", () => {
         relayUrl: "https://relay.example.com",
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.relayUrl).toBe("https://relay.example.com");
@@ -139,7 +141,7 @@ describe("Config Schema (Simplified)", () => {
         allowFrom: ["user1", "user2"],
       };
 
-      const result = KakaoChannelConfigSchema.safeParse(config);
+      const result = KakaoAccountConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.allowFrom).toEqual(["user1", "user2"]);
@@ -147,9 +149,35 @@ describe("Config Schema (Simplified)", () => {
     });
   });
 
-  describe("validateChannelConfig", () => {
+  describe("KakaoChannelConfigSchema (wrapper)", () => {
+    it("should accept empty config (accounts optional)", () => {
+      const config = {};
+
+      const result = KakaoChannelConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+    });
+
+    it("should accept config with accounts", () => {
+      const config = {
+        accounts: {
+          default: {
+            enabled: true,
+            sessionToken: "test-token",
+          },
+        },
+      };
+
+      const result = KakaoChannelConfigSchema.safeParse(config);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.accounts?.default?.enabled).toBe(true);
+      }
+    });
+  });
+
+  describe("validateAccountConfig", () => {
     it("should return ok: true for valid config", () => {
-      const result = validateChannelConfig({});
+      const result = validateAccountConfig({});
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data.enabled).toBe(true);
@@ -157,7 +185,7 @@ describe("Config Schema (Simplified)", () => {
     });
 
     it("should return ok: true for config with channelId", () => {
-      const result = validateChannelConfig({ channelId: "ch1" });
+      const result = validateAccountConfig({ channelId: "ch1" });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data.channelId).toBe("ch1");
@@ -165,7 +193,7 @@ describe("Config Schema (Simplified)", () => {
     });
 
     it("should return ok: false with errors for invalid config", () => {
-      const result = validateChannelConfig({ reconnectDelayMs: 100 });
+      const result = validateAccountConfig({ reconnectDelayMs: 100 });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.errors.length).toBeGreaterThan(0);
@@ -174,11 +202,27 @@ describe("Config Schema (Simplified)", () => {
     });
 
     it("should format error paths correctly", () => {
-      const result = validateChannelConfig({ reconnectDelayMs: 100 });
+      const result = validateAccountConfig({ reconnectDelayMs: 100 });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.errors.some(e => e.includes("reconnectDelayMs"))).toBe(true);
       }
+    });
+  });
+
+  describe("validateChannelConfig", () => {
+    it("should return ok: true for empty config", () => {
+      const result = validateChannelConfig({});
+      expect(result.ok).toBe(true);
+    });
+
+    it("should return ok: true for config with accounts", () => {
+      const result = validateChannelConfig({
+        accounts: {
+          default: { enabled: true },
+        },
+      });
+      expect(result.ok).toBe(true);
     });
   });
 });

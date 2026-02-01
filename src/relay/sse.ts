@@ -2,7 +2,7 @@ import type { SSEEvent, SSEClientConfig, InboundMessage } from "../types.js";
 
 const DEFAULT_RECONNECT_DELAY_MS = 1000;
 const DEFAULT_MAX_RECONNECT_DELAY_MS = 30000;
-const DEFAULT_TIMEOUT_MS = 60000;
+const DEFAULT_TIMEOUT_MS = 300000; // 5 minutes - SSE connections need longer timeout
 
 export interface SSEHandlers {
   onMessage: (msg: InboundMessage) => Promise<void>;
@@ -151,6 +151,9 @@ export async function connectSSE(
           if (event.id) {
             lastEventId = event.id;
           }
+
+          // Debug: log all received events
+          console.log(`[sse] Received event: ${event.event}`, JSON.stringify(event.data).substring(0, 200));
 
           if (event.event === "message") {
             await handlers.onMessage(event.data);

@@ -6,7 +6,7 @@
  */
 
 import type { ResolvedKakaoTalkChannel, KakaoChannelConfig } from "../types.js";
-import { KakaoChannelConfigSchema } from "../config/schema.js";
+import { KakaoAccountConfigSchema } from "../config/schema.js";
 
 /**
  * ChannelConfigAdapter interface
@@ -70,7 +70,7 @@ function resolveKakaoTalkChannel(cfg: unknown, accountId: string): ResolvedKakao
   const rawConfig = getAccountConfig(cfg, accountId);
 
   // Validate and apply defaults using schema (empty object gets all defaults)
-  const validationResult = KakaoChannelConfigSchema.safeParse(rawConfig);
+  const validationResult = KakaoAccountConfigSchema.safeParse(rawConfig);
 
   if (!validationResult.success) {
     const errors = validationResult.error.issues

@@ -25,7 +25,6 @@
             },
             "relayUrl": {
               "type": "string",
-              "format": "uri",
               "default": "https://k.tess.dev/",
               "description": "Relay server URL"
             },

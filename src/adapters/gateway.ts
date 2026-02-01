@@ -3,18 +3,26 @@
  *
  * Relay mode only - always starts SSE stream.
  * Uses OpenClaw standard naming: account, startAccount, stopAccount
+ *
+ * Message dispatch follows OpenClaw pattern:
+ * SSE message → finalizeInboundContext → dispatchReplyWithBufferedBlockDispatcher
  */
 
-import type { ResolvedKakaoTalkChannel, InboundMessage } from "../types.js";
+import type { ResolvedKakaoTalkChannel, InboundMessage, KakaoSkillResponse } from "../types.js";
 import { startRelayStream, type StreamCallbacks } from "../relay/stream.js";
+import { getKakaoRuntime } from "../runtime.js";
+import { sendReply } from "../relay/client.js";
 
 export interface GatewayContext {
   account: ResolvedKakaoTalkChannel;
+  accountId: string;
   cfg: unknown;
   abortSignal: AbortSignal;
-  onMessage: (msg: InboundMessage) => Promise<void>;
-  onPairingRequired?: (pairingCode: string, expiresIn: number) => void;
-  onPairingComplete?: (kakaoUserId: string) => void;
+  runtime?: {
+    log?: (msg: string) => void;
+    error?: (msg: string) => void;
+    exit?: () => void;
+  };
   log?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;
@@ -40,15 +48,121 @@ export function getPendingPairingInfo(): { pairingCode: string; expiresIn: numbe
   return info;
 }
 
+/**
+ * Build OpenClaw message context from InboundMessage
+ */
+function buildMessageContext(
+  msg: InboundMessage,
+  account: ResolvedKakaoTalkChannel,
+  accountId: string
+): Record<string, unknown> {
+  const { normalized } = msg;
+  const sessionKey = `agent:main:kakao-talkchannel:dm:${normalized.userId}`;
+
+  return {
+    // Message content
+    Body: normalized.text,
+    RawBody: normalized.text,
+    BodyForAgent: normalized.text,
+    BodyForCommands: normalized.text,
+
+    // Identifiers
+    From: `kakao:${normalized.userId}`,
+    To: `kakao:${normalized.channelId}`,
+    Provider: "kakao-talkchannel",
+    Surface: "kakao-talkchannel",
+    MessageSid: msg.id,
+    MessageSidFull: msg.id,
+
+    // Routing
+    SessionKey: sessionKey,
+    AccountId: accountId,
+
+    // Chat context (always DM for now)
+    ChatType: "direct",
+    Timestamp: msg.createdAt ? new Date(msg.createdAt).getTime() : Date.now(),
+
+    // Sender details
+    SenderId: normalized.userId,
+
+    // Control (authorize commands for paired users)
+    CommandAuthorized: true,
+  };
+}
+
+/**
+ * Handle inbound message by dispatching to OpenClaw agent system
+ */
+async function handleInboundMessage(
+  msg: InboundMessage,
+  account: ResolvedKakaoTalkChannel,
+  accountId: string,
+  cfg: unknown,
+  log?: GatewayContext["log"]
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const runtime = getKakaoRuntime() as any;
+  const channel = runtime.channel;
+
+  log?.info(`[kakao-talkchannel:${account.talkchannelId}] Received message: ${msg.id}`);
+
+  // Build and finalize message context
+  const rawCtx = buildMessageContext(msg, account, accountId);
+  const ctxPayload = channel.reply.finalizeInboundContext(rawCtx);
+
+  // Get relay config for sending replies
+  const relayUrl = account.config.relayUrl ?? "https://kakao-relay.talelapse.in";
+  const relayToken = account.config.sessionToken ?? account.config.relayToken ?? "";
+
+  // Dispatch to OpenClaw agent system
+  await channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+    ctx: ctxPayload,
+    cfg,
+    dispatcherOptions: {
+      deliver: async (payload: { text?: string; mediaUrls?: string[] }) => {
+        if (!payload.text) return;
+
+        // Build Kakao skill response
+        const response: KakaoSkillResponse = {
+          version: "2.0",
+          template: {
+            outputs: [{ simpleText: { text: payload.text } }],
+          },
+        };
+
+        // Send reply via relay server
+        try {
+          await sendReply(
+            { relayUrl, relayToken },
+            msg.id,
+            response
+          );
+          log?.info(`[kakao-talkchannel:${account.talkchannelId}] Reply sent for ${msg.id}`);
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          log?.error(`[kakao-talkchannel:${account.talkchannelId}] Reply failed: ${errMsg}`);
+        }
+      },
+      onReplyStart: async () => {
+        // Could send typing indicator if supported
+      },
+      onIdle: async () => {
+        // Stop typing indicator
+      },
+      onError: (err: Error, info: { kind: string }) => {
+        log?.error(`[kakao-talkchannel:${account.talkchannelId}] Dispatch ${info.kind} error: ${err.message}`);
+      },
+    },
+  });
+}
+
 export const gatewayAdapter = {
   startAccount: async (ctx: GatewayContext): Promise<void> => {
-    const { account, abortSignal, onMessage, onPairingRequired, onPairingComplete, log } = ctx;
+    const { account, accountId, cfg, abortSignal, log } = ctx;
 
-    if (log) {
-      log.info(
-        `[kakao-talkchannel:${account.talkchannelId}] Starting SSE stream to ${account.config.relayUrl}`
-      );
-    }
+    log?.info(
+      `[kakao-talkchannel:${account.talkchannelId}] Starting SSE stream to ${account.config.relayUrl}`
+    );
 
     const callbacks: StreamCallbacks = {
       onPairingRequired: (pairingCode, expiresIn) => {
@@ -56,28 +170,23 @@ export const gatewayAdapter = {
         pendingPairingInfo = { pairingCode, expiresIn };
 
         // Log the pairing code prominently
-        if (log) {
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
-        }
-
-        // Call external callback if provided
-        onPairingRequired?.(pairingCode, expiresIn);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
       },
       onPairingComplete: (kakaoUserId) => {
-        if (log) {
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
-        }
-        onPairingComplete?.(kakaoUserId);
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
       },
       onPairingExpired: (reason) => {
-        if (log) {
-          log.info(`[kakao-talkchannel:${account.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
-        }
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
       },
+    };
+
+    // Message handler that dispatches to OpenClaw
+    const onMessage = async (msg: InboundMessage): Promise<void> => {
+      await handleInboundMessage(msg, account, accountId, cfg, log);
     };
 
     return startRelayStream(account, onMessage, abortSignal, {}, callbacks, log);

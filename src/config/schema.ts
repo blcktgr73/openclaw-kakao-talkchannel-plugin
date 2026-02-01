@@ -6,15 +6,14 @@
  */
 import { z } from "zod";
 
-const DEFAULT_RELAY_URL = "https://k.tess.dev/";
+export const DEFAULT_RELAY_URL = "https://k.tess.dev/";
 
 /**
- * Kakao channel configuration schema (simplified)
+ * Single account configuration schema
  *
- * Single channel, relay mode only.
  * channelId is optional (pairing-based identification)
  */
-export const KakaoChannelConfigSchema = z.object({
+export const KakaoAccountConfigSchema = z.object({
   // Basic settings
   enabled: z.boolean().default(true),
   channelId: z.string().min(1, "channelId는 필수입니다").optional(),
@@ -42,9 +41,22 @@ export const KakaoChannelConfigSchema = z.object({
 });
 
 /**
+ * Full channel configuration schema with accounts wrapper
+ *
+ * Structure: channels.kakao-talkchannel.accounts.<accountId>
+ */
+export const KakaoChannelConfigSchema = z.object({
+  accounts: z.record(z.string(), KakaoAccountConfigSchema).optional(),
+});
+
+/**
  * Inferred types from schemas
  */
+export type KakaoAccountConfig = z.infer<typeof KakaoAccountConfigSchema>;
 export type KakaoChannelConfig = z.infer<typeof KakaoChannelConfigSchema>;
+
+// Re-export for backwards compatibility
+export { KakaoAccountConfigSchema as KakaoTalkChannelConfigSchema };
 
 /**
  * Validation result type
@@ -54,7 +66,25 @@ export type ValidationResult<T> =
   | { ok: false; errors: string[] };
 
 /**
- * Validate channel configuration with friendly error messages
+ * Validate account configuration with friendly error messages
+ */
+export function validateAccountConfig(input: unknown): ValidationResult<KakaoAccountConfig> {
+  const result = KakaoAccountConfigSchema.safeParse(input);
+
+  if (result.success) {
+    return { ok: true, data: result.data };
+  }
+
+  const errors = result.error.issues.map(issue => {
+    const path = issue.path.join(".");
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+
+  return { ok: false, errors };
+}
+
+/**
+ * Validate full channel configuration with friendly error messages
  */
 export function validateChannelConfig(input: unknown): ValidationResult<KakaoChannelConfig> {
   const result = KakaoChannelConfigSchema.safeParse(input);
