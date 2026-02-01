@@ -13,6 +13,8 @@ No configuration required - works out of the box after installation.
 3. Type `/pair ABCD-1234` in KakaoTalk channel chat
 4. Connected!
 
+Test TalkChannel: http://pf.kakao.com/_scexbC
+
 ## Advanced Settings (Optional)
 
 ```yaml
