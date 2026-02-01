@@ -121,14 +121,9 @@ export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
     return "default";
   },
 
-  isConfigured: (account) => {
+  isConfigured: (_account) => {
     // For relay mode: always configured (can auto-create session)
-    return Boolean(
-      account.config.sessionToken ||
-      account.config.relayToken ||
-      process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
-      true // Can always auto-create session
-    );
+    return true;
   },
 
   isEnabled: (account) => {

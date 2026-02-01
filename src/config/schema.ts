@@ -66,6 +66,16 @@ export type ValidationResult<T> =
   | { ok: false; errors: string[] };
 
 /**
+ * Format Zod validation errors into readable strings
+ */
+function formatZodErrors(issues: z.ZodIssue[]): string[] {
+  return issues.map(issue => {
+    const path = issue.path.join(".");
+    return path ? `${path}: ${issue.message}` : issue.message;
+  });
+}
+
+/**
  * Validate account configuration with friendly error messages
  */
 export function validateAccountConfig(input: unknown): ValidationResult<KakaoAccountConfig> {
@@ -75,12 +85,7 @@ export function validateAccountConfig(input: unknown): ValidationResult<KakaoAcc
     return { ok: true, data: result.data };
   }
 
-  const errors = result.error.issues.map(issue => {
-    const path = issue.path.join(".");
-    return path ? `${path}: ${issue.message}` : issue.message;
-  });
-
-  return { ok: false, errors };
+  return { ok: false, errors: formatZodErrors(result.error.issues) };
 }
 
 /**
@@ -93,10 +98,5 @@ export function validateChannelConfig(input: unknown): ValidationResult<KakaoCha
     return { ok: true, data: result.data };
   }
 
-  const errors = result.error.issues.map(issue => {
-    const path = issue.path.join(".");
-    return path ? `${path}: ${issue.message}` : issue.message;
-  });
-
-  return { ok: false, errors };
+  return { ok: false, errors: formatZodErrors(result.error.issues) };
 }

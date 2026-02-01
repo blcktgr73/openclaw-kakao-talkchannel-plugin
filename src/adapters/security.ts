@@ -52,10 +52,6 @@ export const securityAdapter = {
       );
     }
 
-    if (!account.config.relayToken && !account.config.sessionToken) {
-      // Not a warning in simplified mode - session can be auto-created
-    }
-
     return warnings;
   },
 };

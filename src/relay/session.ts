@@ -7,7 +7,7 @@
  * - pairingCode: For users to enter in KakaoTalk
  */
 
-const DEFAULT_RELAY_URL = "https://k.tess.dev/";
+import { DEFAULT_RELAY_URL } from "../config/schema.js";
 
 export type SessionStatus = "pending_pairing" | "paired" | "expired" | "disconnected";
 
@@ -133,4 +133,5 @@ function normalizeRelayUrl(url: string): string {
   return url.endsWith("/") ? url : `${url}/`;
 }
 
+// Re-export for consumers that import from this module
 export { DEFAULT_RELAY_URL };

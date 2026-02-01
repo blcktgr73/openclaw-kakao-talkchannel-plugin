@@ -42,7 +42,7 @@ describe("Relay Client", () => {
       expect(result.success).toBe(true);
       expect(result.deliveredAt).toBeDefined();
       expect(mockFetch).toHaveBeenCalledWith(
-        "https://relay.example.com/reply",
+        "https://relay.example.com/openclaw/reply",
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({

@@ -18,11 +18,6 @@ export interface GatewayContext {
   accountId: string;
   cfg: unknown;
   abortSignal: AbortSignal;
-  runtime?: {
-    log?: (msg: string) => void;
-    error?: (msg: string) => void;
-    exit?: () => void;
-  };
   log?: {
     info: (msg: string) => void;
     warn: (msg: string) => void;

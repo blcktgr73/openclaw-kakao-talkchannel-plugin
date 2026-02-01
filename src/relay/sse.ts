@@ -152,9 +152,6 @@ export async function connectSSE(
             lastEventId = event.id;
           }
 
-          // Debug: log all received events
-          console.log(`[sse] Received event: ${event.event}`, JSON.stringify(event.data).substring(0, 200));
-
           if (event.event === "message") {
             await handlers.onMessage(event.data);
           } else if (event.event === "error") {
