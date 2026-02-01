@@ -8,11 +8,11 @@ import { z } from "zod";
 const DEFAULT_RELAY_URL = "https://k.tess.dev/";
 
 /**
- * Kakao account configuration schema
+ * Kakao TalkChannel configuration schema
  *
  * Note: channelId is optional for relay mode (pairing-based identification)
  */
-export const KakaoAccountConfigSchema = z.object({
+export const KakaoTalkChannelConfigSchema = z.object({
   // Basic settings
   enabled: z.boolean().default(true),
   channelId: z.string().min(1, "channelId는 필수입니다").optional(),
@@ -48,18 +48,18 @@ export const KakaoAccountConfigSchema = z.object({
 );
 
 /**
- * Kakao channel configuration schema (with accounts)
+ * Kakao channel configuration schema (with talkchannels)
  */
 export const KakaoChannelConfigSchema = z.object({
   enabled: z.boolean().default(true),
   mode: z.enum(["direct", "relay"]).default("direct"),
-  accounts: z.record(z.string(), KakaoAccountConfigSchema).default({}),
+  talkchannels: z.record(z.string(), KakaoTalkChannelConfigSchema).default({}),
 });
 
 /**
  * Inferred types from schemas
  */
-export type KakaoAccountConfig = z.infer<typeof KakaoAccountConfigSchema>;
+export type KakaoTalkChannelConfig = z.infer<typeof KakaoTalkChannelConfigSchema>;
 export type KakaoChannelConfig = z.infer<typeof KakaoChannelConfigSchema>;
 
 /**
@@ -70,10 +70,10 @@ export type ValidationResult<T> =
   | { ok: false; errors: string[] };
 
 /**
- * Validate account configuration with friendly error messages
+ * Validate talkchannel configuration with friendly error messages
  */
-export function validateAccountConfig(input: unknown): ValidationResult<KakaoAccountConfig> {
-  const result = KakaoAccountConfigSchema.safeParse(input);
+export function validateTalkChannelConfig(input: unknown): ValidationResult<KakaoTalkChannelConfig> {
+  const result = KakaoTalkChannelConfigSchema.safeParse(input);
   
   if (result.success) {
     return { ok: true, data: result.data };

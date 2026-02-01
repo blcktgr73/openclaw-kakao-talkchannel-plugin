@@ -8,7 +8,7 @@
 import type {
   KakaoSkillPayload,
   KakaoSkillResponse,
-  ResolvedKakaoAccount,
+  ResolvedKakaoTalkChannel,
 } from "../types.js";
 import { parseSkillPayload, getCallbackUrl } from "./payload.js";
 import {
@@ -19,7 +19,7 @@ import {
 import { sendCallback } from "./callback.js";
 
 export interface WebhookHandlerContext {
-  account: ResolvedKakaoAccount;
+  talkchannel: ResolvedKakaoTalkChannel;
   onMessage: (payload: KakaoSkillPayload) => Promise<string>;
   onError?: (error: unknown) => void;
 }
@@ -65,13 +65,13 @@ function scheduleCallbackProcessing(
       const responseText = await ctx.onMessage(payload);
       const response = buildSimpleTextResponse(responseText);
       const result = await sendCallback(callbackUrl, response);
-      
+
       if (!result.success) {
         ctx.onError?.(new Error(`Callback failed: ${result.error}`));
       }
     } catch (error) {
       ctx.onError?.(error);
-      
+
       const errorResponse = buildErrorResponse(ERROR_MESSAGE_GENERIC);
       await sendCallback(callbackUrl, errorResponse).catch((callbackError) => {
         ctx.onError?.(new Error(`Failed to send error callback: ${callbackError}`));
@@ -81,13 +81,13 @@ function scheduleCallbackProcessing(
 }
 
 export function createWebhookHandler(
-  account: ResolvedKakaoAccount,
+  talkchannel: ResolvedKakaoTalkChannel,
   onMessage: (payload: KakaoSkillPayload) => Promise<string>,
   onError?: (error: unknown) => void
 ): (body: unknown) => Promise<KakaoSkillResponse> {
   return (body: unknown) =>
     handleWebhook(body, {
-      account,
+      talkchannel,
       onMessage,
       onError,
     });

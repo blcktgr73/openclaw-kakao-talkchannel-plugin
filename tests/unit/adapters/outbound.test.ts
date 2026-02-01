@@ -14,14 +14,14 @@ import {
   outboundAdapter,
   chunkTextForKakao,
 } from "../../../src/adapters/outbound.js";
-import type { ResolvedKakaoAccount } from "../../../src/types.js";
+import type { ResolvedKakaoTalkChannel } from "../../../src/types.js";
 
 // ============================================================================
 // Test Fixtures
 // ============================================================================
 
-const mockAccount: ResolvedKakaoAccount = {
-  accountId: "test-account-123",
+const mockTalkChannel: ResolvedKakaoTalkChannel = {
+  talkchannelId: "test-account-123",
   enabled: true,
   name: "Test Account",
   config: {
@@ -35,8 +35,8 @@ const mockAccount: ResolvedKakaoAccount = {
 const createOutboundContext = (overrides?: Partial<OutboundContext>): OutboundContext => ({
   to: "user_123",
   text: "Hello, this is a test message.",
-  accountId: "test-account-123",
-  account: mockAccount,
+  talkchannelId: "test-account-123",
+  talkchannel: mockTalkChannel,
   ...overrides,
 });
 
@@ -210,8 +210,8 @@ describe("outboundAdapter.sendText", () => {
     const ctx: OutboundContext = {
       to: "user_456",
       text: "Test message",
-      accountId: "account_789",
-      account: mockAccount,
+      talkchannelId: "account_789",
+      talkchannel: mockTalkChannel,
     };
 
     const result = await outboundAdapter.sendText(ctx);

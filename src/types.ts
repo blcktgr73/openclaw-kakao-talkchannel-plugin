@@ -134,7 +134,7 @@ export interface KakaoSkillResponse {
 export type KakaoDmPolicy = "pairing" | "allowlist" | "open" | "disabled";
 export type KakaoConnectionMode = "direct" | "relay";
 
-export interface KakaoAccountConfig {
+export interface KakaoTalkChannelConfig {
   enabled: boolean;
   channelId?: string; // Optional for relay mode
   mode: KakaoConnectionMode;
@@ -156,9 +156,9 @@ export interface KakaoAccountConfig {
   callbackTimeoutMs?: number;
 }
 
-export interface ResolvedKakaoAccount {
-  accountId: string;
-  config: KakaoAccountConfig;
+export interface ResolvedKakaoTalkChannel {
+  talkchannelId: string;
+  config: KakaoTalkChannelConfig;
   enabled: boolean;
   name?: string;
   channelId?: string; // Optional for relay mode

@@ -1,14 +1,14 @@
 /**
  * Kakao Channel Status Adapter
  *
- * Provides status monitoring and health checks for Kakao accounts.
+ * Provides status monitoring and health checks for Kakao TalkChannels.
  * Supports both direct and relay modes with probe capabilities.
  */
 
-import type { ResolvedKakaoAccount } from "../types.js";
+import type { ResolvedKakaoTalkChannel } from "../types.js";
 
-export interface ChannelAccountSnapshot {
-  accountId: string;
+export interface ChannelTalkChannelSnapshot {
+  talkchannelId: string;
   name?: string;
   enabled: boolean;
   configured: boolean;
@@ -25,11 +25,11 @@ export interface ChannelAccountSnapshot {
 export interface ChannelStatusIssue {
   level: "error" | "warn" | "info";
   message: string;
-  accountId?: string;
+  talkchannelId?: string;
 }
 
-export interface AccountRuntime {
-  accountId: string;
+export interface TalkChannelRuntime {
+  talkchannelId: string;
   running: boolean;
   lastStartAt: string | null;
   lastStopAt: string | null;
@@ -40,27 +40,27 @@ export interface AccountRuntime {
 
 export const statusAdapter = {
   defaultRuntime: {
-    accountId: "default",
+    talkchannelId: "default",
     running: false,
     lastStartAt: null,
     lastStopAt: null,
     lastError: null,
-  } as AccountRuntime,
+  } as TalkChannelRuntime,
 
-  probeAccount: async (ctx: {
-    account: ResolvedKakaoAccount;
+  probeTalkChannel: async (ctx: {
+    talkchannel: ResolvedKakaoTalkChannel;
     timeoutMs?: number;
   }): Promise<{ ok: boolean; latencyMs?: number; error?: string }> => {
-    const { account, timeoutMs = 5000 } = ctx;
+    const { talkchannel, timeoutMs = 5000 } = ctx;
 
-    if (account.config.mode === "relay") {
-      if (!account.config.relayUrl) {
+    if (talkchannel.config.mode === "relay") {
+      if (!talkchannel.config.relayUrl) {
         return { ok: false, error: "relayUrl not configured" };
       }
 
       const start = Date.now();
       try {
-        const response = await fetch(`${account.config.relayUrl}/health`, {
+        const response = await fetch(`${talkchannel.config.relayUrl}/health`, {
           method: "GET",
           signal: AbortSignal.timeout(timeoutMs),
         });
@@ -78,19 +78,19 @@ export const statusAdapter = {
     return { ok: true };
   },
 
-  buildAccountSnapshot: (ctx: {
-    account: ResolvedKakaoAccount;
-    runtime?: AccountRuntime;
+  buildTalkChannelSnapshot: (ctx: {
+    talkchannel: ResolvedKakaoTalkChannel;
+    runtime?: TalkChannelRuntime;
     probe?: { ok: boolean; latencyMs?: number; error?: string };
-  }): ChannelAccountSnapshot => {
-    const { account, runtime, probe } = ctx;
+  }): ChannelTalkChannelSnapshot => {
+    const { talkchannel, runtime, probe } = ctx;
 
     return {
-      accountId: account.accountId,
-      name: account.config.channelId,
-      enabled: account.config.enabled,
-      configured: Boolean(account.config.channelId),
-      mode: account.config.mode,
+      talkchannelId: talkchannel.talkchannelId,
+      name: talkchannel.config.channelId,
+      enabled: talkchannel.config.enabled,
+      configured: Boolean(talkchannel.config.channelId),
+      mode: talkchannel.config.mode,
       running: runtime?.running ?? false,
       lastStartAt: runtime?.lastStartAt ?? null,
       lastStopAt: runtime?.lastStopAt ?? null,
@@ -102,35 +102,35 @@ export const statusAdapter = {
   },
 
   collectStatusIssues: (
-    accounts: ChannelAccountSnapshot[]
+    talkchannels: ChannelTalkChannelSnapshot[]
   ): ChannelStatusIssue[] => {
     const issues: ChannelStatusIssue[] = [];
 
-    for (const account of accounts) {
-      if (account.configured && !account.enabled) {
+    for (const talkchannel of talkchannels) {
+      if (talkchannel.configured && !talkchannel.enabled) {
         issues.push({
           level: "warn",
-          message: `Kakao account "${account.accountId}" is configured but disabled`,
-          accountId: account.accountId,
+          message: `Kakao TalkChannel "${talkchannel.talkchannelId}" is configured but disabled`,
+          talkchannelId: talkchannel.talkchannelId,
         });
       }
 
-      if (account.mode === "relay" && account.probe && !account.probe.ok) {
+      if (talkchannel.mode === "relay" && talkchannel.probe && !talkchannel.probe.ok) {
         issues.push({
           level: "error",
-          message: `Kakao relay server unreachable: ${account.probe.error}`,
-          accountId: account.accountId,
+          message: `Kakao relay server unreachable: ${talkchannel.probe.error}`,
+          talkchannelId: talkchannel.talkchannelId,
         });
       }
 
-      if (account.running && account.lastInboundAt) {
+      if (talkchannel.running && talkchannel.lastInboundAt) {
         const silentMs =
-          Date.now() - new Date(account.lastInboundAt).getTime();
+          Date.now() - new Date(talkchannel.lastInboundAt).getTime();
         if (silentMs > 30 * 60 * 1000) {
           issues.push({
             level: "warn",
-            message: `Kakao account "${account.accountId}" has not received messages for ${Math.round(silentMs / 60000)} minutes`,
-            accountId: account.accountId,
+            message: `Kakao TalkChannel "${talkchannel.talkchannelId}" has not received messages for ${Math.round(silentMs / 60000)} minutes`,
+            talkchannelId: talkchannel.talkchannelId,
           });
         }
       }

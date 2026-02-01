@@ -48,9 +48,9 @@ describe('Plugin Export', () => {
     
     it('should have config adapter', () => {
       expect(kakaoPlugin.config).toBeDefined();
-      expect(kakaoPlugin.config.listAccountIds).toBeTypeOf('function');
-      expect(kakaoPlugin.config.resolveAccount).toBeTypeOf('function');
-      expect(kakaoPlugin.config.defaultAccountId).toBeTypeOf('function');
+      expect(kakaoPlugin.config.listTalkChannelIds).toBeTypeOf('function');
+      expect(kakaoPlugin.config.resolveTalkChannel).toBeTypeOf('function');
+      expect(kakaoPlugin.config.defaultTalkChannelId).toBeTypeOf('function');
       expect(kakaoPlugin.config.isConfigured).toBeTypeOf('function');
       expect(kakaoPlugin.config.isEnabled).toBeTypeOf('function');
     });

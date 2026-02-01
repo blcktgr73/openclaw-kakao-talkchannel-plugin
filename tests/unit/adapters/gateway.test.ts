@@ -2,14 +2,14 @@
  * Gateway Adapter tests
  *
  * Tests for gatewayAdapter implementation with 5+ test cases covering:
- * - startAccount: relay mode starts SSE stream
- * - startAccount: direct mode logs ready message
- * - startAccount: respects abort signal
- * - stopAccount: cleanup stub implementation
+ * - startTalkChannel: relay mode starts SSE stream
+ * - startTalkChannel: direct mode logs ready message
+ * - startTalkChannel: respects abort signal
+ * - stopTalkChannel: cleanup stub implementation
  * - Edge cases: missing config, invalid mode
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { ResolvedKakaoAccount } from "../../../src/types";
+import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 
 vi.mock("../../../src/runtime.js", () => ({
   getKakaoRuntime: () => ({
@@ -29,14 +29,14 @@ vi.mock("../../../src/relay/stream.js", () => ({
 const { gatewayAdapter } = await import("../../../src/adapters/gateway");
 
 describe("Gateway Adapter", () => {
-  let mockAccount: ResolvedKakaoAccount;
+  let mockTalkChannel: ResolvedKakaoTalkChannel;
   let mockAbortSignal: AbortSignal;
   let mockOnMessage: ReturnType<typeof vi.fn>;
   let mockLog: { info: ReturnType<typeof vi.fn>; error: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    mockAccount = {
-      accountId: "default",
+    mockTalkChannel = {
+      talkchannelId: "default",
       enabled: true,
       config: {
         enabled: true,
@@ -54,12 +54,12 @@ describe("Gateway Adapter", () => {
     };
   });
 
-  describe("startAccount", () => {
+  describe("startTalkChannel", () => {
     it("should start SSE stream for relay mode", async () => {
-      const relayAccount: ResolvedKakaoAccount = {
-        ...mockAccount,
+      const relayTalkChannel: ResolvedKakaoTalkChannel = {
+        ...mockTalkChannel,
         config: {
-          ...mockAccount.config,
+          ...mockTalkChannel.config,
           mode: "relay",
           relayUrl: "https://relay.example.com",
           relayToken: "sk-test-token",
@@ -68,7 +68,7 @@ describe("Gateway Adapter", () => {
       };
 
       const ctx = {
-        account: relayAccount,
+        talkchannel: relayTalkChannel,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
@@ -76,28 +76,28 @@ describe("Gateway Adapter", () => {
       };
 
       // Should not throw
-      await expect(gatewayAdapter.startAccount(ctx as any)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.startTalkChannel(ctx as any)).resolves.toBeUndefined();
     });
 
     it("should log ready message for direct mode", async () => {
-      const directAccount: ResolvedKakaoAccount = {
-        ...mockAccount,
+      const directAccount: ResolvedKakaoTalkChannel = {
+        ...mockTalkChannel,
         config: {
-          ...mockAccount.config,
+          ...mockTalkChannel.config,
           mode: "direct",
           publicWebhookUrl: "https://example.com/webhook",
         },
       };
 
       const ctx = {
-        account: directAccount,
+        talkchannel: directAccount,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      await gatewayAdapter.startAccount(ctx as any);
+      await gatewayAdapter.startTalkChannel(ctx as any);
 
       // Should log info message for direct mode
       expect(mockLog.info).toHaveBeenCalled();
@@ -107,10 +107,10 @@ describe("Gateway Adapter", () => {
 
     it("should handle abort signal for relay mode", async () => {
       const controller = new AbortController();
-      const relayAccount: ResolvedKakaoAccount = {
-        ...mockAccount,
+      const relayTalkChannel: ResolvedKakaoTalkChannel = {
+        ...mockTalkChannel,
         config: {
-          ...mockAccount.config,
+          ...mockTalkChannel.config,
           mode: "relay",
           relayUrl: "https://relay.example.com",
           relayToken: "sk-test-token",
@@ -118,14 +118,14 @@ describe("Gateway Adapter", () => {
       };
 
       const ctx = {
-        account: relayAccount,
+        talkchannel: relayTalkChannel,
         cfg: {},
         abortSignal: controller.signal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      const startPromise = gatewayAdapter.startAccount(ctx as any);
+      const startPromise = gatewayAdapter.startTalkChannel(ctx as any);
 
       // Abort should be respected
       controller.abort();
@@ -136,7 +136,7 @@ describe("Gateway Adapter", () => {
 
     it("should accept optional log parameter", async () => {
       const ctx = {
-        account: mockAccount,
+        talkchannel: mockTalkChannel,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
@@ -144,14 +144,14 @@ describe("Gateway Adapter", () => {
       };
 
       // Should not throw even without log
-      await expect(gatewayAdapter.startAccount(ctx as any)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.startTalkChannel(ctx as any)).resolves.toBeUndefined();
     });
 
     it("should call onMessage callback when message received in relay mode", async () => {
-      const relayAccount: ResolvedKakaoAccount = {
-        ...mockAccount,
+      const relayTalkChannel: ResolvedKakaoTalkChannel = {
+        ...mockTalkChannel,
         config: {
-          ...mockAccount.config,
+          ...mockTalkChannel.config,
           mode: "relay",
           relayUrl: "https://relay.example.com",
           relayToken: "sk-test-token",
@@ -160,48 +160,48 @@ describe("Gateway Adapter", () => {
       };
 
       const ctx = {
-        account: relayAccount,
+        talkchannel: relayTalkChannel,
         cfg: {},
         abortSignal: mockAbortSignal,
         onMessage: mockOnMessage,
         log: mockLog,
       };
 
-      await gatewayAdapter.startAccount(ctx as any);
+      await gatewayAdapter.startTalkChannel(ctx as any);
 
       // onMessage should be a function that can be called
       expect(typeof ctx.onMessage).toBe("function");
     });
   });
 
-  describe("stopAccount", () => {
+  describe("stopTalkChannel", () => {
     it("should stop account with accountId", async () => {
       const ctx = {
-        accountId: "default",
+        talkchannelId: "default",
       };
 
       // Should not throw
-      await expect(gatewayAdapter.stopAccount(ctx)).resolves.toBeUndefined();
+      await expect(gatewayAdapter.stopTalkChannel(ctx)).resolves.toBeUndefined();
     });
 
     it("should handle multiple stop calls", async () => {
       const ctx = {
-        accountId: "default",
+        talkchannelId: "default",
       };
 
-      await gatewayAdapter.stopAccount(ctx);
-      await gatewayAdapter.stopAccount(ctx);
+      await gatewayAdapter.stopTalkChannel(ctx);
+      await gatewayAdapter.stopTalkChannel(ctx);
 
       // Should complete without error
       expect(true).toBe(true);
     });
 
     it("should work with different account IDs", async () => {
-      const ctx1 = { accountId: "account1" };
-      const ctx2 = { accountId: "account2" };
+      const ctx1 = { talkchannelId: "account1" };
+      const ctx2 = { talkchannelId: "account2" };
 
-      await gatewayAdapter.stopAccount(ctx1);
-      await gatewayAdapter.stopAccount(ctx2);
+      await gatewayAdapter.stopTalkChannel(ctx1);
+      await gatewayAdapter.stopTalkChannel(ctx2);
 
       // Should complete without error
       expect(true).toBe(true);

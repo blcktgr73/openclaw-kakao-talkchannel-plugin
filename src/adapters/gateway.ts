@@ -1,8 +1,8 @@
-import type { ResolvedKakaoAccount, InboundMessage } from "../types.js";
+import type { ResolvedKakaoTalkChannel, InboundMessage } from "../types.js";
 import { startRelayStream } from "../relay/stream.js";
 
 export interface GatewayContext {
-  account: ResolvedKakaoAccount;
+  talkchannel: ResolvedKakaoTalkChannel;
   cfg: unknown;
   abortSignal: AbortSignal;
   onMessage: (msg: InboundMessage) => Promise<void>;
@@ -12,18 +12,18 @@ export interface GatewayContext {
   };
 }
 
-export interface StopAccountContext {
-  accountId: string;
+export interface StopTalkChannelContext {
+  talkchannelId: string;
 }
 
 async function registerWebhookRoute(
-  account: ResolvedKakaoAccount,
+  talkchannel: ResolvedKakaoTalkChannel,
   _cfg: unknown,
   log?: { info: (msg: string) => void; error: (msg: string) => void }
 ): Promise<void> {
   if (log) {
     log.info(
-      `[kakao:${account.accountId}] Direct mode ready at ${account.config.publicWebhookUrl ?? account.config.webhookPath}`
+      `[kakao:${talkchannel.talkchannelId}] Direct mode ready at ${talkchannel.config.publicWebhookUrl ?? talkchannel.config.webhookPath}`
     );
   }
 
@@ -31,22 +31,22 @@ async function registerWebhookRoute(
 }
 
 export const gatewayAdapter = {
-  startAccount: async (ctx: GatewayContext): Promise<void> => {
-    const { account, cfg, abortSignal, onMessage, log } = ctx;
+  startTalkChannel: async (ctx: GatewayContext): Promise<void> => {
+    const { talkchannel, cfg, abortSignal, onMessage, log } = ctx;
 
-    if (account.config.mode === "relay") {
+    if (talkchannel.config.mode === "relay") {
       if (log) {
         log.info(
-          `[kakao:${account.accountId}] Starting SSE stream to ${account.config.relayUrl}`
+          `[kakao:${talkchannel.talkchannelId}] Starting SSE stream to ${talkchannel.config.relayUrl}`
         );
       }
-      return startRelayStream(account, onMessage, abortSignal);
+      return startRelayStream(talkchannel, onMessage, abortSignal);
     } else {
-      return registerWebhookRoute(account, cfg, log);
+      return registerWebhookRoute(talkchannel, cfg, log);
     }
   },
 
-  stopAccount: async (_ctx: StopAccountContext): Promise<void> => {
+  stopTalkChannel: async (_ctx: StopTalkChannelContext): Promise<void> => {
     return Promise.resolve();
   },
 };

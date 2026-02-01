@@ -1,11 +1,11 @@
-import type { ResolvedKakaoAccount } from "../types.js";
+import type { ResolvedKakaoTalkChannel } from "../types.js";
 import { chunkTextForKakao as chunkTextForKakaoImpl } from "../kakao/response.js";
 
 export interface OutboundContext {
   to: string;
   text: string;
-  accountId: string;
-  account: ResolvedKakaoAccount;
+  talkchannelId: string;
+  talkchannel: ResolvedKakaoTalkChannel;
 }
 
 export interface OutboundResult {

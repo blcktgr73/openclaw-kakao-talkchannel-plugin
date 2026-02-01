@@ -14,29 +14,29 @@ function getKakaoConfig(cfg: unknown): {
   config: ConfigObject;
   channels: ConfigObject;
   kakao: ConfigObject;
-  accounts: ConfigObject;
+  talkchannels: ConfigObject;
 } {
   const config = (cfg ?? {}) as ConfigObject;
   const channels = (config.channels ?? {}) as ConfigObject;
   const kakao = (channels["kakao-talkchannel"] ?? {}) as ConfigObject;
-  const accounts = (kakao.accounts ?? {}) as ConfigObject;
-  return { config, channels, kakao, accounts };
+  const talkchannels = (kakao.talkchannels ?? {}) as ConfigObject;
+  return { config, channels, kakao, talkchannels };
 }
 
 export const setupAdapter = {
-  resolveAccountId: (ctx: { accountId?: string }): string => {
-    return ctx.accountId?.trim().toLowerCase() || "default";
+  resolveTalkChannelId: (ctx: { talkchannelId?: string }): string => {
+    return ctx.talkchannelId?.trim().toLowerCase() || "default";
   },
 
-  applyAccountName: (ctx: {
+  applyTalkChannelName: (ctx: {
     cfg: unknown;
-    accountId: string;
+    talkchannelId: string;
     name?: string;
   }): unknown => {
     if (!ctx.name) return ctx.cfg;
 
-    const { config, channels, kakao, accounts } = getKakaoConfig(ctx.cfg);
-    const existingAccount = (accounts[ctx.accountId] ?? {}) as ConfigObject;
+    const { config, channels, kakao, talkchannels } = getKakaoConfig(ctx.cfg);
+    const existingTalkChannel = (talkchannels[ctx.talkchannelId] ?? {}) as ConfigObject;
 
     return {
       ...config,
@@ -44,16 +44,16 @@ export const setupAdapter = {
         ...channels,
         "kakao-talkchannel": {
           ...kakao,
-          accounts: {
-            ...accounts,
-            [ctx.accountId]: { ...existingAccount, name: ctx.name },
+          talkchannels: {
+            ...talkchannels,
+            [ctx.talkchannelId]: { ...existingTalkChannel, name: ctx.name },
           },
         },
       },
     };
   },
 
-  validateInput: (ctx: { accountId: string; input: SetupInput }): string | null => {
+  validateInput: (ctx: { talkchannelId: string; input: SetupInput }): string | null => {
     const { input } = ctx;
 
     // For direct mode, channelId is required
@@ -71,15 +71,15 @@ export const setupAdapter = {
     return null;
   },
 
-  applyAccountConfig: (ctx: {
+  applyTalkChannelConfig: (ctx: {
     cfg: unknown;
-    accountId: string;
+    talkchannelId: string;
     input: SetupInput;
   }): unknown => {
-    const { accountId, input } = ctx;
-    const { config, channels, kakao, accounts } = getKakaoConfig(ctx.cfg);
+    const { talkchannelId, input } = ctx;
+    const { config, channels, kakao, talkchannels } = getKakaoConfig(ctx.cfg);
 
-    const accountConfig: ConfigObject = {
+    const talkchannelConfig: ConfigObject = {
       enabled: true,
       mode: input.mode ?? "direct",
       dmPolicy: "pairing",
@@ -87,26 +87,26 @@ export const setupAdapter = {
 
     // channelId is optional for relay mode
     if (input.channelId) {
-      accountConfig.channelId = input.channelId;
+      talkchannelConfig.channelId = input.channelId;
     }
 
     if (input.mode === "relay") {
       // relayUrl and relayToken are optional (have defaults)
       if (input.relayUrl) {
-        accountConfig.relayUrl = input.relayUrl;
+        talkchannelConfig.relayUrl = input.relayUrl;
       }
       if (input.relayToken) {
-        accountConfig.relayToken = input.relayToken;
+        talkchannelConfig.relayToken = input.relayToken;
       }
       if (input.sessionToken) {
-        accountConfig.sessionToken = input.sessionToken;
+        talkchannelConfig.sessionToken = input.sessionToken;
       }
     } else {
-      accountConfig.publicWebhookUrl = input.publicWebhookUrl;
+      talkchannelConfig.publicWebhookUrl = input.publicWebhookUrl;
     }
 
     if (input.name) {
-      accountConfig.name = input.name;
+      talkchannelConfig.name = input.name;
     }
 
     return {
@@ -116,7 +116,7 @@ export const setupAdapter = {
         "kakao-talkchannel": {
           ...kakao,
           enabled: true,
-          accounts: { ...accounts, [accountId]: accountConfig },
+          talkchannels: { ...talkchannels, [talkchannelId]: talkchannelConfig },
         },
       },
     };

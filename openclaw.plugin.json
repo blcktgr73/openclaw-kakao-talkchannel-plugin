@@ -1,8 +1,14 @@
 {
-  "name": "openclaw-kakao-talkchannel-plugin",
+  "id": "kakao-talkchannel",
+  "name": "Kakao TalkChannel",
   "version": "0.1.0",
   "description": "Kakao TalkChannel integration for OpenClaw",
-  "main": "dist/index.js",
+  "main": "index.ts",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
   "openclaw": {
     "channels": ["kakao-talkchannel"]
   }

@@ -65,7 +65,7 @@ channels:
   kakao-talkchannel:
     enabled: true
     mode: relay
-    accounts:
+    talkchannels:
       default:
         relayUrl: "https://custom-relay.example.com"  # 기본: https://k.tess.dev/
         relayToken: "your-token"  # 수동 토큰 (환경변수 OPENCLAW_TALKCHANNEL_RELAY_TOKEN도 가능)
@@ -80,7 +80,7 @@ channels:
   kakao-talkchannel:
     enabled: true
     mode: direct
-    accounts:
+    talkchannels:
       default:
         channelId: "YOUR_KAKAO_CHANNEL_ID"
         publicWebhookUrl: "https://your-server.com/kakao-talkchannel/webhook"
@@ -118,10 +118,25 @@ channels:
 
 ## 개발
 
+### 설치
+
 ```bash
-pnpm install     # 의존성 설치
+# 1. 의존성 설치
+pnpm install
+
+# 2. 빌드
+pnpm build
+
+# 3. OpenClaw에 설치 (개발용 링크 모드)
+openclaw plugins install -l .
+```
+
+### 명령어
+
+```bash
 pnpm build       # 빌드
 pnpm test        # 테스트
+pnpm test:watch  # 테스트 (감시 모드)
 ```
 
 ## 라이선스

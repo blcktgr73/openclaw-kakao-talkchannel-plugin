@@ -1,103 +1,103 @@
 /**
  * Kakao Channel Config Adapter
- * 
+ *
  * Implements ChannelConfigAdapter interface for Kakao plugin configuration.
  * Provides methods to:
- * - List configured account IDs
- * - Resolve individual accounts with validation
- * - Get default account ID
- * - Check account configuration and enabled status
- * 
+ * - List configured talkchannel IDs
+ * - Resolve individual talkchannels with validation
+ * - Get default talkchannel ID
+ * - Check talkchannel configuration and enabled status
+ *
  * Reference: docs/implementation-plan.md Section 4.1 (lines 371-381)
  */
 
-import type { ResolvedKakaoAccount } from "../types.js";
-import { resolveKakaoAccount, listKakaoAccountIds, getDefaultAccountId } from "../config/accounts.js";
+import type { ResolvedKakaoTalkChannel } from "../types.js";
+import { resolveKakaoTalkChannel, listKakaoTalkChannelIds, getDefaultTalkChannelId } from "../config/talkchannels.js";
 
 /**
  * ChannelConfigAdapter interface
- * 
+ *
  * Generic adapter for channel configuration management.
- * Provides abstraction for account resolution and status checking.
+ * Provides abstraction for talkchannel resolution and status checking.
  */
 export interface ChannelConfigAdapter<T> {
   /**
-   * List all configured account IDs
+   * List all configured talkchannel IDs
    * @param cfg - Plugin configuration object
-   * @returns Array of account IDs (empty if none configured)
+   * @returns Array of talkchannel IDs (empty if none configured)
    */
-  listAccountIds: (cfg: unknown) => string[];
+  listTalkChannelIds: (cfg: unknown) => string[];
 
   /**
-   * Resolve a specific account from configuration
+   * Resolve a specific talkchannel from configuration
    * @param cfg - Plugin configuration object
-   * @param accountId - Account identifier
-   * @returns Resolved account with validated configuration
-   * @throws Error if account not found or config invalid
+   * @param talkchannelId - TalkChannel identifier
+   * @returns Resolved talkchannel with validated configuration
+   * @throws Error if talkchannel not found or config invalid
    */
-  resolveAccount: (cfg: unknown, accountId: string) => T;
+  resolveTalkChannel: (cfg: unknown, talkchannelId: string) => T;
 
   /**
-   * Get the default account ID
+   * Get the default talkchannel ID
    * @param cfg - Plugin configuration object
-   * @returns Default account ID ("default" if exists, otherwise first account)
-   * @throws Error if no accounts configured
+   * @returns Default talkchannel ID ("default" if exists, otherwise first talkchannel)
+   * @throws Error if no talkchannels configured
    */
-  defaultAccountId: (cfg: unknown) => string;
+  defaultTalkChannelId: (cfg: unknown) => string;
 
   /**
-   * Check if account is properly configured
-   * @param account - Resolved account
-   * @returns True if account has required channelId
+   * Check if talkchannel is properly configured
+   * @param talkchannel - Resolved talkchannel
+   * @returns True if talkchannel has required channelId
    */
-  isConfigured: (account: T) => boolean;
+  isConfigured: (talkchannel: T) => boolean;
 
   /**
-   * Check if account is enabled
-   * @param account - Resolved account
-   * @returns True if account is enabled
+   * Check if talkchannel is enabled
+   * @param talkchannel - Resolved talkchannel
+   * @returns True if talkchannel is enabled
    */
-  isEnabled: (account: T) => boolean;
+  isEnabled: (talkchannel: T) => boolean;
 }
 
 /**
  * Kakao channel configuration adapter
- * 
- * Implements ChannelConfigAdapter for ResolvedKakaoAccount.
- * Uses account resolution from src/config/accounts.ts.
+ *
+ * Implements ChannelConfigAdapter for ResolvedKakaoTalkChannel.
+ * Uses talkchannel resolution from src/config/talkchannels.ts.
  */
-export const configAdapter: ChannelConfigAdapter<ResolvedKakaoAccount> = {
-  listAccountIds: (cfg) => {
+export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
+  listTalkChannelIds: (cfg) => {
     try {
-      return listKakaoAccountIds(cfg);
+      return listKakaoTalkChannelIds(cfg);
     } catch {
       return [];
     }
   },
 
-  resolveAccount: (cfg, accountId) => {
-    return resolveKakaoAccount(cfg, accountId);
+  resolveTalkChannel: (cfg, talkchannelId) => {
+    return resolveKakaoTalkChannel(cfg, talkchannelId);
   },
 
-  defaultAccountId: (cfg) => {
-    return getDefaultAccountId(cfg);
+  defaultTalkChannelId: (cfg) => {
+    return getDefaultTalkChannelId(cfg);
   },
 
-  isConfigured: (account) => {
+  isConfigured: (talkchannel) => {
     // For relay mode: configured if token available or can auto-create session
-    if (account.mode === "relay") {
+    if (talkchannel.mode === "relay") {
       return Boolean(
-        account.config.sessionToken ||
-        account.config.relayToken ||
+        talkchannel.config.sessionToken ||
+        talkchannel.config.relayToken ||
         process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN ||
         true // Can always auto-create session
       );
     }
     // For direct mode: channelId is required
-    return Boolean(account.config.channelId);
+    return Boolean(talkchannel.config.channelId);
   },
 
-  isEnabled: (account) => {
-    return account.config.enabled;
+  isEnabled: (talkchannel) => {
+    return talkchannel.config.enabled;
   },
 };

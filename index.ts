@@ -7,7 +7,7 @@
 import type { PluginRuntime } from "openclaw/plugin-sdk";
 import { kakaoPlugin } from "./src/channel.js";
 import { setKakaoRuntime, getKakaoRuntime } from "./src/runtime.js";
-import { resolveKakaoAccount } from "./src/config/accounts.js";
+import { resolveKakaoTalkChannel } from "./src/config/talkchannels.js";
 import { createWebhookHandler } from "./src/kakao/webhook-handler.js";
 import { buildSimpleTextResponse } from "./src/kakao/response.js";
 
@@ -50,15 +50,15 @@ const plugin = {
         path: "/kakao-talkchannel/webhook",
         handler: async (req, res) => {
           try {
-            const account = resolveKakaoAccount(api.config, "default");
+            const talkchannel = resolveKakaoTalkChannel(api.config, "default");
 
-            if (account.config.mode !== "direct") {
+            if (talkchannel.config.mode !== "direct") {
               res.statusCode = 404;
               res.end(JSON.stringify({ error: "Direct mode not enabled" }));
               return;
             }
 
-            const handler = createWebhookHandler(account, async (payload) => {
+            const handler = createWebhookHandler(talkchannel, async (payload) => {
               return `메시지를 받았습니다: ${payload.userRequest.utterance}`;
             });
 

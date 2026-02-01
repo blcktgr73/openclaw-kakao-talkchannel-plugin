@@ -3,25 +3,25 @@
  *
  * Tests for statusAdapter implementation with 8+ test cases covering:
  * - defaultRuntime: default runtime state
- * - probeAccount: health check for relay/direct modes
- * - buildAccountSnapshot: build account snapshot from account + runtime + probe
+ * - probeTalkChannel: health check for relay/direct modes
+ * - buildTalkChannelSnapshot: build talkchannel snapshot from talkchannel + runtime + probe
  * - collectStatusIssues: collect status issues from snapshots
- * - Edge cases: disabled accounts, relay errors, message silence
+ * - Edge cases: disabled talkchannels, relay errors, message silence
  */
 import { describe, it, expect, vi } from "vitest";
 import { statusAdapter } from "../../../src/adapters/status";
 import type {
-  ChannelAccountSnapshot,
-  AccountRuntime,
+  ChannelTalkChannelSnapshot,
+  TalkChannelRuntime,
 } from "../../../src/adapters/status";
-import type { ResolvedKakaoAccount } from "../../../src/types";
+import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 
 describe("ChannelStatusAdapter", () => {
   describe("defaultRuntime", () => {
     it("should provide default runtime with all null/false values", () => {
       const runtime = statusAdapter.defaultRuntime;
 
-      expect(runtime.accountId).toBe("default");
+      expect(runtime.talkchannelId).toBe("default");
       expect(runtime.running).toBe(false);
       expect(runtime.lastStartAt).toBeNull();
       expect(runtime.lastStopAt).toBeNull();
@@ -36,10 +36,10 @@ describe("ChannelStatusAdapter", () => {
     });
   });
 
-  describe("probeAccount", () => {
-    it("should return ok=true for direct mode accounts", async () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "direct-account",
+  describe("probeTalkChannel", () => {
+    it("should return ok=true for direct mode talkchannels", async () => {
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "direct-account",
         enabled: true,
         name: "Direct Channel",
         config: {
@@ -52,15 +52,15 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const result = await statusAdapter.probeAccount({ account });
+      const result = await statusAdapter.probeTalkChannel({ talkchannel });
 
       expect(result.ok).toBe(true);
       expect(result.error).toBeUndefined();
     });
 
-    it("should probe relay server for relay mode accounts", async () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "relay-account",
+    it("should probe relay server for relay mode talkchannels", async () => {
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "relay-account",
         enabled: true,
         name: "Relay Channel",
         config: {
@@ -79,7 +79,7 @@ describe("ChannelStatusAdapter", () => {
         status: 200,
       });
 
-      const result = await statusAdapter.probeAccount({ account });
+      const result = await statusAdapter.probeTalkChannel({ talkchannel });
 
       expect(result.ok).toBe(true);
       expect(result.latencyMs).toBeDefined();
@@ -93,8 +93,8 @@ describe("ChannelStatusAdapter", () => {
     });
 
     it("should return error when relay server is unreachable", async () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "relay-account",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "relay-account",
         enabled: true,
         name: "Relay Channel",
         config: {
@@ -109,15 +109,15 @@ describe("ChannelStatusAdapter", () => {
 
       global.fetch = vi.fn().mockRejectedValueOnce(new Error("Network error"));
 
-      const result = await statusAdapter.probeAccount({ account });
+      const result = await statusAdapter.probeTalkChannel({ talkchannel });
 
       expect(result.ok).toBe(false);
       expect(result.error).toBeDefined();
     });
 
     it("should return error when relay server returns non-200 status", async () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "relay-account",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "relay-account",
         enabled: true,
         name: "Relay Channel",
         config: {
@@ -135,15 +135,15 @@ describe("ChannelStatusAdapter", () => {
         status: 503,
       });
 
-      const result = await statusAdapter.probeAccount({ account });
+      const result = await statusAdapter.probeTalkChannel({ talkchannel });
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain("503");
     });
 
     it("should return error when relay URL is not configured", async () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "relay-account",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "relay-account",
         enabled: true,
         name: "Relay Channel",
         config: {
@@ -155,17 +155,17 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const result = await statusAdapter.probeAccount({ account });
+      const result = await statusAdapter.probeTalkChannel({ talkchannel });
 
       expect(result.ok).toBe(false);
       expect(result.error).toContain("relayUrl");
     });
   });
 
-  describe("buildAccountSnapshot", () => {
-    it("should build snapshot with all fields from account and runtime", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "acc123",
+  describe("buildTalkChannelSnapshot", () => {
+    it("should build snapshot with all fields from talkchannel and runtime", () => {
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "acc123",
         enabled: true,
         name: "Test Channel",
         config: {
@@ -176,8 +176,8 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const runtime: AccountRuntime = {
-        accountId: "acc123",
+      const runtime: TalkChannelRuntime = {
+        talkchannelId: "acc123",
         running: true,
         lastStartAt: "2025-01-31T10:00:00Z",
         lastStopAt: null,
@@ -188,13 +188,13 @@ describe("ChannelStatusAdapter", () => {
 
       const probe = { ok: true, latencyMs: 45 };
 
-      const snapshot = statusAdapter.buildAccountSnapshot({
-        account,
+      const snapshot = statusAdapter.buildTalkChannelSnapshot({
+        talkchannel: talkchannel,
         runtime,
         probe,
       });
 
-      expect(snapshot.accountId).toBe("acc123");
+      expect(snapshot.talkchannelId).toBe("acc123");
       expect(snapshot.name).toBe("ch123");
       expect(snapshot.enabled).toBe(true);
       expect(snapshot.configured).toBe(true);
@@ -209,8 +209,8 @@ describe("ChannelStatusAdapter", () => {
     });
 
     it("should use default values when runtime is not provided", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "acc456",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "acc456",
         enabled: false,
         config: {
           enabled: false,
@@ -220,9 +220,9 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const snapshot = statusAdapter.buildAccountSnapshot({ account });
+      const snapshot = statusAdapter.buildTalkChannelSnapshot({ talkchannel });
 
-      expect(snapshot.accountId).toBe("acc456");
+      expect(snapshot.talkchannelId).toBe("acc456");
       expect(snapshot.enabled).toBe(false);
       expect(snapshot.running).toBe(false);
       expect(snapshot.lastStartAt).toBeNull();
@@ -233,8 +233,8 @@ describe("ChannelStatusAdapter", () => {
     });
 
     it("should mark as configured when channelId is present", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "acc789",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "acc789",
         enabled: true,
         config: {
           enabled: true,
@@ -244,14 +244,14 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const snapshot = statusAdapter.buildAccountSnapshot({ account });
+      const snapshot = statusAdapter.buildTalkChannelSnapshot({ talkchannel });
 
       expect(snapshot.configured).toBe(true);
     });
 
     it("should mark as not configured when channelId is empty", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "acc000",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "acc000",
         enabled: true,
         config: {
           enabled: true,
@@ -261,17 +261,17 @@ describe("ChannelStatusAdapter", () => {
         },
       };
 
-      const snapshot = statusAdapter.buildAccountSnapshot({ account });
+      const snapshot = statusAdapter.buildTalkChannelSnapshot({ talkchannel });
 
       expect(snapshot.configured).toBe(false);
     });
   });
 
   describe("collectStatusIssues", () => {
-    it("should warn when account is configured but disabled", () => {
-      const accounts: ChannelAccountSnapshot[] = [
+    it("should warn when talkchannel is configured but disabled", () => {
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc1",
+          talkchannelId: "acc1",
           name: "Channel 1",
           enabled: false,
           configured: true,
@@ -283,21 +283,21 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "warn",
           message: expect.stringContaining("configured but disabled"),
-          accountId: "acc1",
+          talkchannelId: "acc1",
         })
       );
     });
 
     it("should error when relay server is unreachable", () => {
-      const accounts: ChannelAccountSnapshot[] = [
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc2",
+          talkchannelId: "acc2",
           name: "Relay Channel",
           enabled: true,
           configured: true,
@@ -310,23 +310,23 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "error",
           message: expect.stringContaining("relay server unreachable"),
-          accountId: "acc2",
+          talkchannelId: "acc2",
         })
       );
     });
 
-    it("should warn when account has not received messages for 30+ minutes", () => {
+    it("should warn when talkchannel has not received messages for 30+ minutes", () => {
       const thirtyMinutesAgo = new Date(Date.now() - 31 * 60 * 1000).toISOString();
 
-      const accounts: ChannelAccountSnapshot[] = [
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc3",
+          talkchannelId: "acc3",
           name: "Silent Channel",
           enabled: true,
           configured: true,
@@ -339,23 +339,23 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "warn",
           message: expect.stringContaining("has not received messages"),
-          accountId: "acc3",
+          talkchannelId: "acc3",
         })
       );
     });
 
-    it("should not warn when account has received messages within 30 minutes", () => {
+    it("should not warn when talkchannel has received messages within 30 minutes", () => {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-      const accounts: ChannelAccountSnapshot[] = [
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc4",
+          talkchannelId: "acc4",
           name: "Active Channel",
           enabled: true,
           configured: true,
@@ -368,7 +368,7 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       const silenceWarnings = issues.filter((i) =>
         i.message.includes("has not received messages")
@@ -376,12 +376,12 @@ describe("ChannelStatusAdapter", () => {
       expect(silenceWarnings).toHaveLength(0);
     });
 
-    it("should not warn about silence when account is not running", () => {
+    it("should not warn about silence when talkchannel is not running", () => {
       const thirtyMinutesAgo = new Date(Date.now() - 31 * 60 * 1000).toISOString();
 
-      const accounts: ChannelAccountSnapshot[] = [
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc5",
+          talkchannelId: "acc5",
           name: "Stopped Channel",
           enabled: true,
           configured: true,
@@ -394,7 +394,7 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       const silenceWarnings = issues.filter((i) =>
         i.message.includes("has not received messages")
@@ -402,12 +402,12 @@ describe("ChannelStatusAdapter", () => {
       expect(silenceWarnings).toHaveLength(0);
     });
 
-    it("should collect multiple issues from multiple accounts", () => {
+    it("should collect multiple issues from multiple talkchannels", () => {
       const thirtyMinutesAgo = new Date(Date.now() - 31 * 60 * 1000).toISOString();
 
-      const accounts: ChannelAccountSnapshot[] = [
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc6",
+          talkchannelId: "acc6",
           name: "Disabled Channel",
           enabled: false,
           configured: true,
@@ -418,7 +418,7 @@ describe("ChannelStatusAdapter", () => {
           lastError: null,
         },
         {
-          accountId: "acc7",
+          talkchannelId: "acc7",
           name: "Relay Channel",
           enabled: true,
           configured: true,
@@ -430,7 +430,7 @@ describe("ChannelStatusAdapter", () => {
           probe: { ok: false, error: "Timeout" },
         },
         {
-          accountId: "acc8",
+          talkchannelId: "acc8",
           name: "Silent Channel",
           enabled: true,
           configured: true,
@@ -443,33 +443,33 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       expect(issues.length).toBeGreaterThanOrEqual(3);
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "warn",
-          accountId: "acc6",
+          talkchannelId: "acc6",
         })
       );
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "error",
-          accountId: "acc7",
+          talkchannelId: "acc7",
         })
       );
       expect(issues).toContainEqual(
         expect.objectContaining({
           level: "warn",
-          accountId: "acc8",
+          talkchannelId: "acc8",
         })
       );
     });
 
-    it("should return empty array when all accounts are healthy", () => {
-      const accounts: ChannelAccountSnapshot[] = [
+    it("should return empty array when all talkchannels are healthy", () => {
+      const talkchannels: ChannelTalkChannelSnapshot[] = [
         {
-          accountId: "acc9",
+          talkchannelId: "acc9",
           name: "Healthy Channel",
           enabled: true,
           configured: true,
@@ -482,7 +482,7 @@ describe("ChannelStatusAdapter", () => {
         },
       ];
 
-      const issues = statusAdapter.collectStatusIssues(accounts);
+      const issues = statusAdapter.collectStatusIssues(talkchannels);
 
       expect(issues).toHaveLength(0);
     });

@@ -11,13 +11,13 @@
  */
 import { describe, it, expect } from "vitest";
 import { securityAdapter } from "../../../src/adapters/security";
-import type { ResolvedKakaoAccount } from "../../../src/types";
+import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 
 describe("ChannelSecurityAdapter", () => {
   describe("resolveDmPolicy", () => {
     it("should resolve pairing policy with correct paths and normalizer", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -29,22 +29,22 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "default",
+        talkchannel,
+        talkchannelId: "default",
       });
 
       expect(policy).not.toBeNull();
       expect(policy!.policy).toBe("pairing");
       expect(policy!.allowFrom).toEqual(["user1", "user2"]);
-      expect(policy!.policyPath).toBe("channels[\"kakao-talkchannel\"].accounts.default.dmPolicy");
+      expect(policy!.policyPath).toBe("channels[\"kakao-talkchannel\"].talkchannels.default.dmPolicy");
       expect(policy!.allowFromPath).toBe(
-        "channels[\"kakao-talkchannel\"].accounts.default.allowFrom"
+        "channels[\"kakao-talkchannel\"].talkchannels.default.allowFrom"
       );
     });
 
     it("should resolve allowlist policy with empty allowFrom array", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "secondary",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "secondary",
         enabled: true,
         config: {
           enabled: true,
@@ -55,8 +55,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "secondary",
+        talkchannel,
+        talkchannelId: "secondary",
       });
 
       expect(policy).not.toBeNull();
@@ -65,8 +65,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should resolve open policy", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "test",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "test",
         enabled: true,
         config: {
           enabled: true,
@@ -77,8 +77,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "test",
+        talkchannel,
+        talkchannelId: "test",
       });
 
       expect(policy).not.toBeNull();
@@ -86,8 +86,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should resolve disabled policy", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "disabled",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "disabled",
         enabled: false,
         config: {
           enabled: false,
@@ -98,8 +98,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "disabled",
+        talkchannel,
+        talkchannelId: "disabled",
       });
 
       expect(policy).not.toBeNull();
@@ -107,8 +107,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should normalize entry by removing kakao: prefix", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -120,8 +120,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "default",
+        talkchannel,
+        talkchannelId: "default",
       });
 
       expect(policy).not.toBeNull();
@@ -130,8 +130,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should normalize entry case-insensitively for kakao: prefix", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -142,8 +142,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "default",
+        talkchannel,
+        talkchannelId: "default",
       });
 
       expect(policy).not.toBeNull();
@@ -152,8 +152,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should return correct approveHint format", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -164,8 +164,8 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const policy = securityAdapter.resolveDmPolicy({
-        account,
-        accountId: "default",
+        talkchannel,
+        talkchannelId: "default",
       });
 
       expect(policy).not.toBeNull();
@@ -175,8 +175,8 @@ describe("ChannelSecurityAdapter", () => {
 
   describe("collectWarnings", () => {
     it("should warn when dmPolicy is open", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -186,7 +186,7 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBeGreaterThan(0);
       expect(warnings[0]).toContain("dmPolicy='open'");
@@ -194,8 +194,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should warn when relay mode without relayToken", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -205,7 +205,7 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBeGreaterThan(0);
       expect(warnings[0]).toContain("relay mode");
@@ -213,8 +213,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should warn on both open policy and missing relay token", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -224,7 +224,7 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBe(2);
       expect(warnings.some((w) => w.includes("dmPolicy='open'"))).toBe(true);
@@ -232,8 +232,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should not warn when relay mode has relayToken", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -244,14 +244,14 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBe(0);
     });
 
     it("should not warn when direct mode without relayToken", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -261,14 +261,14 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBe(0);
     });
 
     it("should not warn when dmPolicy is pairing or allowlist", () => {
-      const accountPairing: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannelPairing: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -278,8 +278,8 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const accountAllowlist: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannelAllowlist: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: true,
         config: {
           enabled: true,
@@ -290,10 +290,10 @@ describe("ChannelSecurityAdapter", () => {
       };
 
       const warningsPairing = securityAdapter.collectWarnings({
-        account: accountPairing,
+        talkchannel: talkchannelPairing,
       });
       const warningsAllowlist = securityAdapter.collectWarnings({
-        account: accountAllowlist,
+        talkchannel: talkchannelAllowlist,
       });
 
       expect(warningsPairing.length).toBe(0);
@@ -301,8 +301,8 @@ describe("ChannelSecurityAdapter", () => {
     });
 
     it("should not warn when dmPolicy is disabled", () => {
-      const account: ResolvedKakaoAccount = {
-        accountId: "default",
+      const talkchannel: ResolvedKakaoTalkChannel = {
+        talkchannelId: "default",
         enabled: false,
         config: {
           enabled: false,
@@ -312,7 +312,7 @@ describe("ChannelSecurityAdapter", () => {
         },
       };
 
-      const warnings = securityAdapter.collectWarnings({ account });
+      const warnings = securityAdapter.collectWarnings({ talkchannel });
 
       expect(warnings.length).toBe(0);
     });

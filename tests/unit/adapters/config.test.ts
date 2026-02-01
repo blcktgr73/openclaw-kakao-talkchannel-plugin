@@ -2,23 +2,23 @@
  * ChannelConfigAdapter tests
  * 
  * Tests for configAdapter implementation with 6+ test cases covering:
- * - listAccountIds: extract account IDs from config
- * - resolveAccount: resolve account with validation
- * - defaultAccountId: return default or first account
- * - isConfigured: check if account has channelId
- * - isEnabled: check if account is enabled
- * - Edge cases: missing config, empty accounts, disabled accounts
+ * - listTalkChannelIds: extract talkchannel IDs from config
+ * - resolveTalkChannel: resolve account with validation
+ * - defaultTalkChannelId: return default or first account
+ * - isConfigured: check if talkchannel has channelId
+ * - isEnabled: check if talkchannel is enabled
+ * - Edge cases: missing config, empty talkchannels, disabled talkchannels
  */
 import { describe, it, expect } from "vitest";
 import { configAdapter } from "../../../src/adapters/config";
 
 describe("ChannelConfigAdapter", () => {
-  describe("listAccountIds", () => {
-    it("should return array of account IDs from valid config", () => {
+  describe("listTalkChannelIds", () => {
+    it("should return array of talkchannel IDs from valid config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -36,21 +36,21 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      const ids = configAdapter.listAccountIds(cfg);
+      const ids = configAdapter.listTalkChannelIds(cfg);
 
       expect(ids).toEqual(["default", "secondary"]);
     });
 
-    it("should return empty array when no accounts configured", () => {
+    it("should return empty array when no talkchannels configured", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      const ids = configAdapter.listAccountIds(cfg);
+      const ids = configAdapter.listTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
@@ -60,23 +60,23 @@ describe("ChannelConfigAdapter", () => {
         channels: {},
       };
 
-      const ids = configAdapter.listAccountIds(cfg);
+      const ids = configAdapter.listTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
 
     it("should return empty array when config is null or undefined", () => {
-      expect(configAdapter.listAccountIds(null)).toEqual([]);
-      expect(configAdapter.listAccountIds(undefined)).toEqual([]);
+      expect(configAdapter.listTalkChannelIds(null)).toEqual([]);
+      expect(configAdapter.listTalkChannelIds(undefined)).toEqual([]);
     });
   });
 
-  describe("resolveAccount", () => {
+  describe("resolveTalkChannel", () => {
     it("should resolve account with valid config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -88,19 +88,19 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      const account = configAdapter.resolveAccount(cfg, "default");
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
 
-      expect(account.accountId).toBe("default");
-      expect(account.config.channelId).toBe("channel123");
-      expect(account.config.enabled).toBe(true);
-      expect(account.enabled).toBe(true);
+      expect(talkchannel.talkchannelId).toBe("default");
+      expect(talkchannel.config.channelId).toBe("channel123");
+      expect(talkchannel.config.enabled).toBe(true);
+      expect(talkchannel.enabled).toBe(true);
     });
 
-    it("should throw error when account not found", () => {
+    it("should throw error when talkchannel not found", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -112,7 +112,7 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      expect(() => configAdapter.resolveAccount(cfg, "nonexistent")).toThrow(
+      expect(() => configAdapter.resolveTalkChannel(cfg, "nonexistent")).toThrow(
         /not found/i
       );
     });
@@ -121,7 +121,7 @@ describe("ChannelConfigAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 // Missing required channelId
@@ -133,16 +133,16 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      expect(() => configAdapter.resolveAccount(cfg, "default")).toThrow();
+      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow();
     });
   });
 
-  describe("defaultAccountId", () => {
+  describe("defaultTalkChannelId", () => {
     it("should return 'default' when it exists", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -160,7 +160,7 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      const id = configAdapter.defaultAccountId(cfg);
+      const id = configAdapter.defaultTalkChannelId(cfg);
 
       expect(id).toBe("default");
     });
@@ -169,7 +169,7 @@ describe("ChannelConfigAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               primary: {
                 enabled: true,
                 channelId: "channel123",
@@ -187,30 +187,30 @@ describe("ChannelConfigAdapter", () => {
         },
       };
 
-      const id = configAdapter.defaultAccountId(cfg);
+      const id = configAdapter.defaultTalkChannelId(cfg);
 
       expect(id).toBe("primary");
     });
 
-    it("should throw error when no accounts configured", () => {
+    it("should throw error when no talkchannels configured", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      expect(() => configAdapter.defaultAccountId(cfg)).toThrow(
-        /no.*accounts/i
+      expect(() => configAdapter.defaultTalkChannelId(cfg)).toThrow(
+        /no.*talkchannels/i
       );
     });
   });
 
   describe("isConfigured", () => {
-    it("should return true when account has channelId", () => {
-      const account = {
-        accountId: "default",
+    it("should return true when talkchannel has channelId", () => {
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: true,
           channelId: "channel123",
@@ -220,12 +220,12 @@ describe("ChannelConfigAdapter", () => {
         enabled: true,
       };
 
-      expect(configAdapter.isConfigured(account)).toBe(true);
+      expect(configAdapter.isConfigured(talkchannel)).toBe(true);
     });
 
-    it("should return false when account has empty channelId", () => {
-      const account = {
-        accountId: "default",
+    it("should return false when talkchannel has empty channelId", () => {
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: true,
           channelId: "",
@@ -235,12 +235,12 @@ describe("ChannelConfigAdapter", () => {
         enabled: true,
       };
 
-      expect(configAdapter.isConfigured(account)).toBe(false);
+      expect(configAdapter.isConfigured(talkchannel)).toBe(false);
     });
 
-    it("should return false when account has no channelId", () => {
-      const account = {
-        accountId: "default",
+    it("should return false when talkchannel has no channelId", () => {
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: true,
           channelId: undefined as any,
@@ -250,14 +250,14 @@ describe("ChannelConfigAdapter", () => {
         enabled: true,
       };
 
-      expect(configAdapter.isConfigured(account)).toBe(false);
+      expect(configAdapter.isConfigured(talkchannel)).toBe(false);
     });
   });
 
   describe("isEnabled", () => {
-    it("should return true when account is enabled", () => {
-      const account = {
-        accountId: "default",
+    it("should return true when talkchannel is enabled", () => {
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: true,
           channelId: "channel123",
@@ -267,12 +267,12 @@ describe("ChannelConfigAdapter", () => {
         enabled: true,
       };
 
-      expect(configAdapter.isEnabled(account)).toBe(true);
+      expect(configAdapter.isEnabled(talkchannel)).toBe(true);
     });
 
-    it("should return false when account is disabled", () => {
-      const account = {
-        accountId: "default",
+    it("should return false when talkchannel is disabled", () => {
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: false,
           channelId: "channel123",
@@ -282,12 +282,12 @@ describe("ChannelConfigAdapter", () => {
         enabled: false,
       };
 
-      expect(configAdapter.isEnabled(account)).toBe(false);
+      expect(configAdapter.isEnabled(talkchannel)).toBe(false);
     });
 
     it("should return false when config.enabled is false", () => {
-      const account = {
-        accountId: "default",
+      const talkchannel = {
+        talkchannelId: "default",
         config: {
           enabled: false,
           channelId: "channel123",
@@ -297,7 +297,7 @@ describe("ChannelConfigAdapter", () => {
         enabled: true,
       };
 
-      expect(configAdapter.isEnabled(account)).toBe(false);
+      expect(configAdapter.isEnabled(talkchannel)).toBe(false);
     });
   });
 
@@ -306,7 +306,7 @@ describe("ChannelConfigAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -325,22 +325,22 @@ describe("ChannelConfigAdapter", () => {
       };
 
       // List accounts
-      const ids = configAdapter.listAccountIds(cfg);
+      const ids = configAdapter.listTalkChannelIds(cfg);
       expect(ids).toContain("default");
       expect(ids).toContain("secondary");
 
       // Resolve default account
-      const defaultAccount = configAdapter.resolveAccount(cfg, "default");
-      expect(configAdapter.isConfigured(defaultAccount)).toBe(true);
-      expect(configAdapter.isEnabled(defaultAccount)).toBe(true);
+      const defaultTalkChannel = configAdapter.resolveTalkChannel(cfg, "default");
+      expect(configAdapter.isConfigured(defaultTalkChannel)).toBe(true);
+      expect(configAdapter.isEnabled(defaultTalkChannel)).toBe(true);
 
       // Resolve secondary account
-      const secondaryAccount = configAdapter.resolveAccount(cfg, "secondary");
-      expect(configAdapter.isConfigured(secondaryAccount)).toBe(true);
-      expect(configAdapter.isEnabled(secondaryAccount)).toBe(false);
+      const secondaryTalkChannel = configAdapter.resolveTalkChannel(cfg, "secondary");
+      expect(configAdapter.isConfigured(secondaryTalkChannel)).toBe(true);
+      expect(configAdapter.isEnabled(secondaryTalkChannel)).toBe(false);
 
       // Get default account ID
-      const defaultId = configAdapter.defaultAccountId(cfg);
+      const defaultId = configAdapter.defaultTalkChannelId(cfg);
       expect(defaultId).toBe("default");
     });
   });

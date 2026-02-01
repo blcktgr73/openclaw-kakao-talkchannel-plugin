@@ -1,22 +1,22 @@
 /**
- * Account resolution tests
- * 
- * Tests for resolveKakaoAccount, listKakaoAccountIds, and getDefaultAccountId
+ * TalkChannel resolution tests
+ *
+ * Tests for resolveKakaoTalkChannel, listKakaoTalkChannelIds, and getDefaultTalkChannelId
  */
 import { describe, it, expect } from "vitest";
 import {
-  resolveKakaoAccount,
-  listKakaoAccountIds,
-  getDefaultAccountId,
-} from "../../../src/config/accounts";
+  resolveKakaoTalkChannel,
+  listKakaoTalkChannelIds,
+  getDefaultTalkChannelId,
+} from "../../../src/config/talkchannels";
 
-describe("Account Resolution", () => {
-  describe("resolveKakaoAccount", () => {
-    it("should resolve account from valid config", () => {
+describe("TalkChannel Resolution", () => {
+  describe("resolveKakaoTalkChannel", () => {
+    it("should resolve talkchannel from valid config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "channel123",
@@ -28,19 +28,19 @@ describe("Account Resolution", () => {
         },
       };
 
-      const account = resolveKakaoAccount(cfg, "default");
+      const talkchannel = resolveKakaoTalkChannel(cfg, "default");
 
-      expect(account.accountId).toBe("default");
-      expect(account.config.channelId).toBe("channel123");
-      expect(account.config.enabled).toBe(true);
-      expect(account.enabled).toBe(true);
+      expect(talkchannel.talkchannelId).toBe("default");
+      expect(talkchannel.config.channelId).toBe("channel123");
+      expect(talkchannel.config.enabled).toBe(true);
+      expect(talkchannel.enabled).toBe(true);
     });
 
     it("should apply schema defaults when resolving", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 channelId: "channel123",
               },
@@ -49,28 +49,28 @@ describe("Account Resolution", () => {
         },
       };
 
-      const account = resolveKakaoAccount(cfg, "default");
+      const talkchannel = resolveKakaoTalkChannel(cfg, "default");
 
-      expect(account.config.enabled).toBe(true);
-      expect(account.config.mode).toBe("direct");
-      expect(account.config.dmPolicy).toBe("pairing");
-      expect(account.config.webhookPath).toBe("/kakao-talkchannel/webhook");
-        expect(account.config.reconnectDelayMs).toBe(1000);
-        expect(account.config.maxReconnectDelayMs).toBe(30000);
-      expect(account.config.callbackTimeoutMs).toBe(55000);
+      expect(talkchannel.config.enabled).toBe(true);
+      expect(talkchannel.config.mode).toBe("direct");
+      expect(talkchannel.config.dmPolicy).toBe("pairing");
+      expect(talkchannel.config.webhookPath).toBe("/kakao-talkchannel/webhook");
+      expect(talkchannel.config.reconnectDelayMs).toBe(1000);
+      expect(talkchannel.config.maxReconnectDelayMs).toBe(30000);
+      expect(talkchannel.config.callbackTimeoutMs).toBe(55000);
     });
 
-    it("should throw error when account not found", () => {
+    it("should throw error when talkchannel not found", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      expect(() => resolveKakaoAccount(cfg, "missing")).toThrow(
-        /account.*not found/i
+      expect(() => resolveKakaoTalkChannel(cfg, "missing")).toThrow(
+        /talkchannel.*not found/i
       );
     });
 
@@ -79,7 +79,7 @@ describe("Account Resolution", () => {
         channels: {},
       };
 
-      expect(() => resolveKakaoAccount(cfg, "default")).toThrow(
+      expect(() => resolveKakaoTalkChannel(cfg, "default")).toThrow(
         /kakao.*not configured/i
       );
     });
@@ -87,17 +87,17 @@ describe("Account Resolution", () => {
     it("should throw error when channels missing", () => {
       const cfg = {};
 
-      expect(() => resolveKakaoAccount(cfg, "default")).toThrow(
+      expect(() => resolveKakaoTalkChannel(cfg, "default")).toThrow(
         /kakao.*not configured/i
       );
     });
 
-    it("should resolve relay mode account with all settings", () => {
+    it("should resolve relay mode talkchannel with all settings", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
-              relay_account: {
+            talkchannels: {
+              relay_talkchannel: {
                 enabled: true,
                 channelId: "relay_ch",
                 mode: "relay" as const,
@@ -112,21 +112,21 @@ describe("Account Resolution", () => {
         },
       };
 
-      const account = resolveKakaoAccount(cfg, "relay_account");
+      const talkchannel = resolveKakaoTalkChannel(cfg, "relay_talkchannel");
 
-      expect(account.accountId).toBe("relay_account");
-      expect(account.config.mode).toBe("relay");
-      expect(account.config.relayUrl).toBe("https://relay.example.com");
-      expect(account.config.relayToken).toBe("secret_token");
-      expect(account.config.reconnectDelayMs).toBe(2000);
-      expect(account.config.maxReconnectDelayMs).toBe(15000);
+      expect(talkchannel.talkchannelId).toBe("relay_talkchannel");
+      expect(talkchannel.config.mode).toBe("relay");
+      expect(talkchannel.config.relayUrl).toBe("https://relay.example.com");
+      expect(talkchannel.config.relayToken).toBe("secret_token");
+      expect(talkchannel.config.reconnectDelayMs).toBe(2000);
+      expect(talkchannel.config.maxReconnectDelayMs).toBe(15000);
     });
 
     it("should set enabled field based on config.enabled", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               disabled: {
                 enabled: false,
                 channelId: "ch1",
@@ -136,17 +136,17 @@ describe("Account Resolution", () => {
         },
       };
 
-      const account = resolveKakaoAccount(cfg, "disabled");
+      const talkchannel = resolveKakaoTalkChannel(cfg, "disabled");
 
-      expect(account.enabled).toBe(false);
-      expect(account.config.enabled).toBe(false);
+      expect(talkchannel.enabled).toBe(false);
+      expect(talkchannel.config.enabled).toBe(false);
     });
 
     it("should include optional name field when present", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               named: {
                 enabled: true,
                 channelId: "ch1",
@@ -157,16 +157,16 @@ describe("Account Resolution", () => {
         },
       };
 
-      const account = resolveKakaoAccount(cfg, "named");
+      const talkchannel = resolveKakaoTalkChannel(cfg, "named");
 
-      expect(account.name).toBe("My Kakao Bot");
+      expect(talkchannel.name).toBe("My Kakao Bot");
     });
 
     it("should validate config and throw on invalid data", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               invalid: {
                 channelId: "",
               },
@@ -175,16 +175,16 @@ describe("Account Resolution", () => {
         },
       };
 
-      expect(() => resolveKakaoAccount(cfg, "invalid")).toThrow();
+      expect(() => resolveKakaoTalkChannel(cfg, "invalid")).toThrow();
     });
   });
 
-  describe("listKakaoAccountIds", () => {
-    it("should return list of account IDs", () => {
+  describe("listKakaoTalkChannelIds", () => {
+    it("should return list of talkchannel IDs", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: { channelId: "ch1" },
               secondary: { channelId: "ch2" },
               tertiary: { channelId: "ch3" },
@@ -193,7 +193,7 @@ describe("Account Resolution", () => {
         },
       };
 
-      const ids = listKakaoAccountIds(cfg);
+      const ids = listKakaoTalkChannelIds(cfg);
 
       expect(ids).toContain("default");
       expect(ids).toContain("secondary");
@@ -201,16 +201,16 @@ describe("Account Resolution", () => {
       expect(ids.length).toBe(3);
     });
 
-    it("should return empty array when no accounts configured", () => {
+    it("should return empty array when no talkchannels configured", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      const ids = listKakaoAccountIds(cfg);
+      const ids = listKakaoTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
@@ -220,7 +220,7 @@ describe("Account Resolution", () => {
         channels: {},
       };
 
-      const ids = listKakaoAccountIds(cfg);
+      const ids = listKakaoTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
@@ -228,7 +228,7 @@ describe("Account Resolution", () => {
     it("should return empty array when channels missing", () => {
       const cfg = {};
 
-      const ids = listKakaoAccountIds(cfg);
+      const ids = listKakaoTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
@@ -236,18 +236,18 @@ describe("Account Resolution", () => {
     it("should handle unknown config structure gracefully", () => {
       const cfg = null;
 
-      const ids = listKakaoAccountIds(cfg);
+      const ids = listKakaoTalkChannelIds(cfg);
 
       expect(ids).toEqual([]);
     });
   });
 
-  describe("getDefaultAccountId", () => {
+  describe("getDefaultTalkChannelId", () => {
     it("should return 'default' when it exists", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: { channelId: "ch1" },
               secondary: { channelId: "ch2" },
             },
@@ -255,16 +255,16 @@ describe("Account Resolution", () => {
         },
       };
 
-      const id = getDefaultAccountId(cfg);
+      const id = getDefaultTalkChannelId(cfg);
 
       expect(id).toBe("default");
     });
 
-    it("should return first account ID when 'default' does not exist", () => {
+    it("should return first talkchannel ID when 'default' does not exist", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               primary: { channelId: "ch1" },
               secondary: { channelId: "ch2" },
             },
@@ -272,22 +272,22 @@ describe("Account Resolution", () => {
         },
       };
 
-      const id = getDefaultAccountId(cfg);
+      const id = getDefaultTalkChannelId(cfg);
 
       expect(id).toBe("primary");
     });
 
-    it("should throw error when no accounts configured", () => {
+    it("should throw error when no talkchannels configured", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      expect(() => getDefaultAccountId(cfg)).toThrow(
-        /no.*account.*configured/i
+      expect(() => getDefaultTalkChannelId(cfg)).toThrow(
+        /no.*talkchannel.*configured/i
       );
     });
 
@@ -296,16 +296,16 @@ describe("Account Resolution", () => {
         channels: {},
       };
 
-      expect(() => getDefaultAccountId(cfg)).toThrow(
-        /no.*account.*configured/i
+      expect(() => getDefaultTalkChannelId(cfg)).toThrow(
+        /no.*talkchannel.*configured/i
       );
     });
 
     it("should throw error when channels missing", () => {
       const cfg = {};
 
-      expect(() => getDefaultAccountId(cfg)).toThrow(
-        /no.*account.*configured/i
+      expect(() => getDefaultTalkChannelId(cfg)).toThrow(
+        /no.*talkchannel.*configured/i
       );
     });
   });

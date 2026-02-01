@@ -2,54 +2,54 @@
  * Setup Adapter tests
  *
  * Tests for setupAdapter implementation with 5+ test cases covering:
- * - resolveAccountId: normalize and default accountId
- * - applyAccountName: merge name into account config
+ * - resolveTalkChannelId: normalize and default accountId
+ * - applyTalkChannelName: merge name into account config
  * - validateInput: validate required fields based on mode
- * - applyAccountConfig: merge input into channels["kakao-talkchannel"].accounts[accountId]
+ * - applyTalkChannelConfig: merge input into channels["kakao-talkchannel"].talkchannels[accountId]
  * - Edge cases: missing fields, different modes, empty strings
  */
 import { describe, it, expect } from "vitest";
 import { setupAdapter, type SetupInput } from "../../../src/adapters/setup";
 
 describe("SetupAdapter", () => {
-  describe("resolveAccountId", () => {
+  describe("resolveTalkChannelId", () => {
     it("should return normalized accountId when provided", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: "MyAccount" });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: "MyAccount" });
       expect(result).toBe("myaccount");
     });
 
     it("should trim whitespace from accountId", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: "  test  " });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: "  test  " });
       expect(result).toBe("test");
     });
 
     it("should return 'default' when accountId is undefined", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: undefined });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: undefined });
       expect(result).toBe("default");
     });
 
     it("should return 'default' when accountId is empty string", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: "" });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: "" });
       expect(result).toBe("default");
     });
 
     it("should return 'default' when accountId is whitespace only", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: "   " });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: "   " });
       expect(result).toBe("default");
     });
 
     it("should handle mixed case with special characters", () => {
-      const result = setupAdapter.resolveAccountId({ accountId: "Test-Account_123" });
+      const result = setupAdapter.resolveTalkChannelId({ talkchannelId: "Test-Account_123" });
       expect(result).toBe("test-account_123");
     });
   });
 
-  describe("applyAccountName", () => {
+  describe("applyTalkChannelName", () => {
     it("should add name to account config", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "ch123",
@@ -60,9 +60,9 @@ describe("SetupAdapter", () => {
         },
       };
 
-      const result = setupAdapter.applyAccountName({
+      const result = setupAdapter.applyTalkChannelName({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         name: "My Kakao Bot",
       });
 
@@ -72,7 +72,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.name).toBe("My Kakao Bot");
@@ -82,7 +82,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "ch123",
@@ -94,9 +94,9 @@ describe("SetupAdapter", () => {
         },
       };
 
-      const result = setupAdapter.applyAccountName({
+      const result = setupAdapter.applyTalkChannelName({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         name: "Updated Name",
       });
 
@@ -106,7 +106,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.channelId).toBe("ch123");
@@ -118,7 +118,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "ch123",
@@ -128,9 +128,9 @@ describe("SetupAdapter", () => {
         },
       };
 
-      const result = setupAdapter.applyAccountName({
+      const result = setupAdapter.applyTalkChannelName({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         name: undefined,
       });
 
@@ -141,7 +141,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: true,
                 channelId: "ch123",
@@ -151,9 +151,9 @@ describe("SetupAdapter", () => {
         },
       };
 
-      const result = setupAdapter.applyAccountName({
+      const result = setupAdapter.applyTalkChannelName({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         name: "",
       });
 
@@ -164,14 +164,14 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      const result = setupAdapter.applyAccountName({
+      const result = setupAdapter.applyTalkChannelName({
         cfg,
-        accountId: "newaccount",
+        talkchannelId: "newaccount",
         name: "New Account",
       });
 
@@ -181,7 +181,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const newAccount = accounts?.newaccount as Record<string, unknown>;
 
       expect(newAccount?.name).toBe("New Account");
@@ -196,7 +196,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -211,7 +211,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -225,7 +225,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -238,7 +238,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -252,7 +252,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -266,7 +266,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -281,7 +281,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -297,7 +297,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -311,7 +311,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -327,7 +327,7 @@ describe("SetupAdapter", () => {
       };
 
       const error = setupAdapter.validateInput({
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -335,12 +335,12 @@ describe("SetupAdapter", () => {
     });
   });
 
-  describe("applyAccountConfig", () => {
-    it("should merge direct mode config into channels.kakao-talkchannel.accounts", () => {
+  describe("applyTalkChannelConfig", () => {
+    it("should merge direct mode config into channels.kakao-talkchannel.talkchannels", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
@@ -351,9 +351,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -363,7 +363,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.enabled).toBe(true);
@@ -375,11 +375,11 @@ describe("SetupAdapter", () => {
       expect(defaultAccount?.dmPolicy).toBe("pairing");
     });
 
-    it("should merge relay mode config into channels.kakao-talkchannel.accounts", () => {
+    it("should merge relay mode config into channels.kakao-talkchannel.talkchannels", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
@@ -391,9 +391,9 @@ describe("SetupAdapter", () => {
         relayToken: "token123",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -403,7 +403,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.enabled).toBe(true);
@@ -418,7 +418,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
@@ -428,9 +428,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -440,7 +440,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.mode).toBe("direct");
@@ -450,7 +450,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
@@ -462,9 +462,9 @@ describe("SetupAdapter", () => {
         name: "My Kakao Bot",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -474,7 +474,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.name).toBe("My Kakao Bot");
@@ -484,7 +484,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               existing: {
                 enabled: true,
                 channelId: "ch456",
@@ -502,9 +502,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -514,7 +514,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
 
       expect((accounts?.existing as Record<string, unknown>)?.channelId).toBe(
         "ch456"
@@ -528,7 +528,7 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {
+            talkchannels: {
               default: {
                 enabled: false,
                 channelId: "ch456",
@@ -546,9 +546,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -558,7 +558,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.enabled).toBe(true);
@@ -571,7 +571,7 @@ describe("SetupAdapter", () => {
         channels: {
           "kakao-talkchannel": {
             enabled: false,
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
@@ -582,9 +582,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -604,9 +604,9 @@ describe("SetupAdapter", () => {
         publicWebhookUrl: "https://example.com/webhook",
       };
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId: "default",
+        talkchannelId: "default",
         input,
       });
 
@@ -616,7 +616,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const defaultAccount = accounts?.default as Record<string, unknown>;
 
       expect(defaultAccount?.channelId).toBe("ch123");
@@ -628,16 +628,16 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
       // Step 1: Resolve account ID
-      const accountId = setupAdapter.resolveAccountId({
-        accountId: "  MyAccount  ",
+      const talkchannelId = setupAdapter.resolveTalkChannelId({
+        talkchannelId: "  MyAccount  ",
       });
-      expect(accountId).toBe("myaccount");
+      expect(talkchannelId).toBe("myaccount");
 
       // Step 2: Validate input
       const input: SetupInput = {
@@ -648,15 +648,15 @@ describe("SetupAdapter", () => {
       };
 
       const validationError = setupAdapter.validateInput({
-        accountId,
+        talkchannelId,
         input,
       });
       expect(validationError).toBeNull();
 
       // Step 3: Apply config
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId,
+        talkchannelId,
         input,
       });
 
@@ -666,7 +666,7 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
       const account = accounts?.myaccount as Record<string, unknown>;
 
       expect(account?.channelId).toBe("ch123");
@@ -679,13 +679,13 @@ describe("SetupAdapter", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
-            accounts: {},
+            talkchannels: {},
           },
         },
       };
 
-      const accountId = setupAdapter.resolveAccountId({
-        accountId: "relay-account",
+      const talkchannelId = setupAdapter.resolveTalkChannelId({
+        talkchannelId: "relay-account",
       });
 
       const input: SetupInput = {
@@ -697,14 +697,14 @@ describe("SetupAdapter", () => {
       };
 
       const validationError = setupAdapter.validateInput({
-        accountId,
+        talkchannelId,
         input,
       });
       expect(validationError).toBeNull();
 
-      const result = setupAdapter.applyAccountConfig({
+      const result = setupAdapter.applyTalkChannelConfig({
         cfg,
-        accountId,
+        talkchannelId,
         input,
       });
 
@@ -714,8 +714,8 @@ describe("SetupAdapter", () => {
           string,
           unknown
         >
-      )?.accounts as Record<string, unknown>;
-      const account = accounts?.[accountId] as Record<string, unknown>;
+      )?.talkchannels as Record<string, unknown>;
+      const account = accounts?.[talkchannelId] as Record<string, unknown>;
 
       expect(account?.mode).toBe("relay");
       expect(account?.relayUrl).toBe("https://relay.example.com");

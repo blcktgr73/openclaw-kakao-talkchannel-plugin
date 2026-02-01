@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
-  KakaoAccountConfigSchema,
+  KakaoTalkChannelConfigSchema,
   KakaoChannelConfigSchema,
-  validateAccountConfig,
+  validateTalkChannelConfig,
 } from "../../../src/config/schema";
 
 describe("Config Schema", () => {
-  describe("KakaoAccountConfigSchema", () => {
+  describe("KakaoTalkChannelConfigSchema", () => {
     it("should accept valid direct mode config", () => {
       const config = {
         enabled: true,
@@ -16,7 +16,7 @@ describe("Config Schema", () => {
         webhookPath: "/kakao-talkchannel/webhook",
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.mode).toBe("direct");
@@ -35,7 +35,7 @@ describe("Config Schema", () => {
         maxReconnectDelayMs: 15000,
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -44,7 +44,7 @@ describe("Config Schema", () => {
         channelId: "channel123",
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.enabled).toBe(true);
@@ -63,7 +63,7 @@ describe("Config Schema", () => {
         mode: "direct",
       };
 
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -73,7 +73,7 @@ describe("Config Schema", () => {
         mode: "relay",
       };
 
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
     });
 
@@ -83,7 +83,7 @@ describe("Config Schema", () => {
         mode: "direct",
       };
 
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -93,7 +93,7 @@ describe("Config Schema", () => {
         mode: "invalid",
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -103,7 +103,7 @@ describe("Config Schema", () => {
         dmPolicy: "invalid",
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -113,7 +113,7 @@ describe("Config Schema", () => {
         reconnectDelayMs: 100,
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -123,7 +123,7 @@ describe("Config Schema", () => {
         reconnectDelayMs: 60000,
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -133,7 +133,7 @@ describe("Config Schema", () => {
         maxReconnectDelayMs: 1000,
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -143,7 +143,7 @@ describe("Config Schema", () => {
         maxReconnectDelayMs: 120000,
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -153,7 +153,7 @@ describe("Config Schema", () => {
         relayUrl: "not-a-url",
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(false);
     });
 
@@ -163,7 +163,7 @@ describe("Config Schema", () => {
         allowFrom: ["user1", "user2"],
       };
       
-      const result = KakaoAccountConfigSchema.safeParse(config);
+      const result = KakaoTalkChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
         expect(result.data.allowFrom).toEqual(["user1", "user2"]);
@@ -180,14 +180,14 @@ describe("Config Schema", () => {
       const result = KakaoChannelConfigSchema.safeParse(config);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.accounts).toEqual({});
+        expect(result.data.talkchannels).toEqual({});
       }
     });
 
     it("should accept multiple accounts", () => {
       const config = {
         enabled: true,
-        accounts: {
+        talkchannels: {
           default: { channelId: "ch1" },
           secondary: { channelId: "ch2", mode: "relay", relayUrl: "https://relay.example.com" },
         },
@@ -198,9 +198,9 @@ describe("Config Schema", () => {
     });
   });
 
-  describe("validateAccountConfig", () => {
+  describe("validateTalkChannelConfig", () => {
     it("should return ok: true for valid config", () => {
-      const result = validateAccountConfig({ channelId: "ch1" });
+      const result = validateTalkChannelConfig({ channelId: "ch1" });
       expect(result.ok).toBe(true);
       if (result.ok) {
         expect(result.data.channelId).toBe("ch1");
@@ -208,7 +208,7 @@ describe("Config Schema", () => {
     });
 
     it("should return ok: false with errors for invalid config", () => {
-      const result = validateAccountConfig({ enabled: true });
+      const result = validateTalkChannelConfig({ enabled: true });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.errors.length).toBeGreaterThan(0);
@@ -217,7 +217,7 @@ describe("Config Schema", () => {
     });
 
     it("should format error paths correctly", () => {
-      const result = validateAccountConfig({ channelId: "ch1", reconnectDelayMs: 100 });
+      const result = validateTalkChannelConfig({ channelId: "ch1", reconnectDelayMs: 100 });
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.errors.some(e => e.includes("reconnectDelayMs"))).toBe(true);

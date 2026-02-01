@@ -5,7 +5,7 @@
  * Implements ChannelPlugin interface for OpenClaw plugin system.
  */
 
-import type { ResolvedKakaoAccount } from "./types.js";
+import type { ResolvedKakaoTalkChannel } from "./types.js";
 import { configAdapter } from "./adapters/config.js";
 import { outboundAdapter } from "./adapters/outbound.js";
 import { statusAdapter } from "./adapters/status.js";
@@ -77,4 +77,4 @@ export const kakaoPlugin = {
   setup: typeof setupAdapter;
 };
 
-export type { ResolvedKakaoAccount };
+export type { ResolvedKakaoTalkChannel };

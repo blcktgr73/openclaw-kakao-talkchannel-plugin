@@ -65,7 +65,7 @@ channels:
   kakao-talkchannel:
     enabled: true
     mode: relay
-    accounts:
+    talkchannels:
       default:
         relayUrl: "https://custom-relay.example.com"  # Default: https://k.tess.dev/
         relayToken: "your-token"  # Manual token (or use OPENCLAW_TALKCHANNEL_RELAY_TOKEN env)
@@ -80,7 +80,7 @@ channels:
   kakao-talkchannel:
     enabled: true
     mode: direct
-    accounts:
+    talkchannels:
       default:
         channelId: "YOUR_KAKAO_CHANNEL_ID"
         publicWebhookUrl: "https://your-server.com/kakao-talkchannel/webhook"
@@ -118,10 +118,25 @@ channels:
 
 ## Development
 
+### Installation
+
 ```bash
-pnpm install     # Install dependencies
+# 1. Install dependencies
+pnpm install
+
+# 2. Build
+pnpm build
+
+# 3. Install to OpenClaw (development link mode)
+openclaw plugins install -l .
+```
+
+### Commands
+
+```bash
 pnpm build       # Build
 pnpm test        # Test
+pnpm test:watch  # Test (watch mode)
 ```
 
 ## License

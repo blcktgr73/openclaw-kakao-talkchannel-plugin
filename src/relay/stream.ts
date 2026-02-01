@@ -1,4 +1,4 @@
-import type { ResolvedKakaoAccount, InboundMessage } from "../types.js";
+import type { ResolvedKakaoTalkChannel, InboundMessage } from "../types.js";
 import { connectSSE } from "./sse.js";
 import { getKakaoRuntime } from "../runtime.js";
 import { createSession, DEFAULT_RELAY_URL } from "./session.js";
@@ -27,19 +27,19 @@ const DEFAULT_STREAM_OPTIONS: Required<StreamOptions> = {
  * 4. Create new session (returns pairing code via callback)
  */
 async function resolveToken(
-  account: ResolvedKakaoAccount,
+  talkchannel: ResolvedKakaoTalkChannel,
   callbacks: StreamCallbacks
 ): Promise<{ token: string; relayUrl: string; isNewSession: boolean }> {
-  const relayUrl = account.config.relayUrl ?? DEFAULT_RELAY_URL;
+  const relayUrl = talkchannel.config.relayUrl ?? DEFAULT_RELAY_URL;
 
   // 1. Check sessionToken
-  if (account.config.sessionToken) {
-    return { token: account.config.sessionToken, relayUrl, isNewSession: false };
+  if (talkchannel.config.sessionToken) {
+    return { token: talkchannel.config.sessionToken, relayUrl, isNewSession: false };
   }
 
   // 2. Check relayToken
-  if (account.config.relayToken) {
-    return { token: account.config.relayToken, relayUrl, isNewSession: false };
+  if (talkchannel.config.relayToken) {
+    return { token: talkchannel.config.relayToken, relayUrl, isNewSession: false };
   }
 
   // 3. Check environment variable
@@ -61,7 +61,7 @@ async function resolveToken(
 }
 
 export async function startRelayStream(
-  account: ResolvedKakaoAccount,
+  talkchannel: ResolvedKakaoTalkChannel,
   onMessage: (msg: InboundMessage) => Promise<void>,
   abortSignal: AbortSignal,
   opts: StreamOptions = {},
@@ -71,8 +71,8 @@ export async function startRelayStream(
   const options = { ...DEFAULT_STREAM_OPTIONS, ...opts };
 
   // Resolve token (may create new session)
-  const { token, relayUrl, isNewSession } = await resolveToken(account, callbacks);
-  const { reconnectDelayMs, maxReconnectDelayMs } = account.config;
+  const { token, relayUrl, isNewSession } = await resolveToken(talkchannel, callbacks);
+  const { reconnectDelayMs, maxReconnectDelayMs } = talkchannel.config;
 
   let reconnectCount = 0;
 
@@ -89,27 +89,27 @@ export async function startRelayStream(
         await onMessage(msg);
       },
       onConnected: () => {
-        runtime.logger.info(`[kakao:${account.accountId}] SSE connected to ${relayUrl}`);
+        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] SSE connected to ${relayUrl}`);
         reconnectCount = 0;
       },
       onError: (error) => {
         const sanitizedError = error.message.replace(/token=[^&\s]+/gi, "token=***");
-        runtime.logger.warn(`[kakao:${account.accountId}] SSE error: ${sanitizedError}`);
+        runtime.logger.warn(`[kakao:${talkchannel.talkchannelId}] SSE error: ${sanitizedError}`);
       },
       onReconnect: (attempt) => {
         reconnectCount = attempt;
-        runtime.logger.info(`[kakao:${account.accountId}] SSE reconnecting (attempt ${attempt})`);
+        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt})`);
 
         if (reconnectCount >= options.maxRetries) {
-          runtime.logger.error(`[kakao:${account.accountId}] Max reconnect attempts exceeded`);
+          runtime.logger.error(`[kakao:${talkchannel.talkchannelId}] Max reconnect attempts exceeded`);
         }
       },
       onPairingComplete: (data) => {
-        runtime.logger.info(`[kakao:${account.accountId}] Pairing complete: ${data.kakaoUserId}`);
+        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] Pairing complete: ${data.kakaoUserId}`);
         callbacks.onPairingComplete?.(data.kakaoUserId);
       },
       onPairingExpired: (reason) => {
-        runtime.logger.warn(`[kakao:${account.accountId}] Pairing expired: ${reason}`);
+        runtime.logger.warn(`[kakao:${talkchannel.talkchannelId}] Pairing expired: ${reason}`);
         callbacks.onPairingExpired?.(reason);
       },
     },

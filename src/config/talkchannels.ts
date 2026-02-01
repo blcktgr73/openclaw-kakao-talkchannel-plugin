@@ -1,55 +1,55 @@
 /**
- * Kakao account resolution logic
+ * Kakao TalkChannel resolution logic
  *
- * Resolves account configuration from plugin config object.
- * Handles config path: channels["kakao-talkchannel"].accounts[accountId]
+ * Resolves talkchannel configuration from plugin config object.
+ * Handles config path: channels["kakao-talkchannel"].talkchannels[talkchannelId]
  * Applies schema defaults during resolution.
  */
 
-import type { ResolvedKakaoAccount } from "../types.js";
-import { KakaoAccountConfigSchema } from "./schema.js";
+import type { ResolvedKakaoTalkChannel } from "../types.js";
+import { KakaoTalkChannelConfigSchema } from "./schema.js";
 
 /**
- * Resolve a Kakao account from configuration
- * 
+ * Resolve a Kakao TalkChannel from configuration
+ *
  * @param cfg - Plugin configuration object
- * @param accountId - Account identifier
- * @returns Resolved account with validated config and defaults applied
- * @throws Error if account not found or config invalid
+ * @param talkchannelId - TalkChannel identifier
+ * @returns Resolved talkchannel with validated config and defaults applied
+ * @throws Error if talkchannel not found or config invalid
  */
-export function resolveKakaoAccount(
+export function resolveKakaoTalkChannel(
   cfg: unknown,
-  accountId: string
-): ResolvedKakaoAccount {
-  // Navigate config path: channels.kakao.accounts[accountId]
+  talkchannelId: string
+): ResolvedKakaoTalkChannel {
+  // Navigate config path: channels.kakao.talkchannels[talkchannelId]
   const kakaoConfig = getKakaoChannelConfig(cfg);
-  
+
   if (!kakaoConfig) {
     throw new Error(
       "Kakao TalkChannel is not configured. " +
       "Please add channels[\"kakao-talkchannel\"] section to your configuration."
     );
   }
-  
-  const accounts = kakaoConfig.accounts as Record<string, unknown> | undefined;
-  if (!accounts || !(accountId in accounts)) {
+
+  const talkchannels = kakaoConfig.talkchannels as Record<string, unknown> | undefined;
+  if (!talkchannels || !(talkchannelId in talkchannels)) {
     throw new Error(
-      `Kakao account "${accountId}" not found in configuration. ` +
-      `Available accounts: ${Object.keys(accounts ?? {}).join(", ") || "none"}`
+      `Kakao TalkChannel "${talkchannelId}" not found in configuration. ` +
+      `Available talkchannels: ${Object.keys(talkchannels ?? {}).join(", ") || "none"}`
     );
   }
 
-  const rawAccountConfig = accounts[accountId];
+  const rawTalkChannelConfig = talkchannels[talkchannelId];
 
   // Validate and apply defaults using schema
-  const validationResult = KakaoAccountConfigSchema.safeParse(rawAccountConfig);
-  
+  const validationResult = KakaoTalkChannelConfigSchema.safeParse(rawTalkChannelConfig);
+
   if (!validationResult.success) {
     const errors = validationResult.error.issues
       .map((issue: { path: (string | number)[]; message: string }) => `${issue.path.join(".")}: ${issue.message}`)
       .join("; ");
     throw new Error(
-      `Invalid Kakao account configuration for "${accountId}": ${errors}`
+      `Invalid Kakao TalkChannel configuration for "${talkchannelId}": ${errors}`
     );
   }
 
@@ -66,10 +66,10 @@ export function resolveKakaoAccount(
   }
 
   return {
-    accountId,
+    talkchannelId,
     config,
     enabled: config.enabled,
-    name: (rawAccountConfig as Record<string, unknown>).name as string | undefined,
+    name: (rawTalkChannelConfig as Record<string, unknown>).name as string | undefined,
     channelId: config.channelId, // May be undefined for relay mode
     mode: config.mode,
     tokenSource,
@@ -77,37 +77,37 @@ export function resolveKakaoAccount(
 }
 
 /**
- * List all configured Kakao account IDs
- * 
+ * List all configured Kakao TalkChannel IDs
+ *
  * @param cfg - Plugin configuration object
- * @returns Array of account IDs, empty array if none configured
+ * @returns Array of talkchannel IDs, empty array if none configured
  */
-export function listKakaoAccountIds(cfg: unknown): string[] {
+export function listKakaoTalkChannelIds(cfg: unknown): string[] {
   const kakaoConfig = getKakaoChannelConfig(cfg);
-  
-  if (!kakaoConfig || !kakaoConfig.accounts) {
+
+  if (!kakaoConfig || !kakaoConfig.talkchannels) {
     return [];
   }
 
-  return Object.keys(kakaoConfig.accounts);
+  return Object.keys(kakaoConfig.talkchannels);
 }
 
 /**
- * Get the default Kakao account ID
- * 
- * Returns "default" if it exists, otherwise returns the first account ID.
- * 
+ * Get the default Kakao TalkChannel ID
+ *
+ * Returns "default" if it exists, otherwise returns the first talkchannel ID.
+ *
  * @param cfg - Plugin configuration object
- * @returns Default account ID
- * @throws Error if no accounts configured
+ * @returns Default talkchannel ID
+ * @throws Error if no talkchannels configured
  */
-export function getDefaultAccountId(cfg: unknown): string {
-  const ids = listKakaoAccountIds(cfg);
+export function getDefaultTalkChannelId(cfg: unknown): string {
+  const ids = listKakaoTalkChannelIds(cfg);
 
   if (ids.length === 0) {
     throw new Error(
-      "No Kakao accounts configured. " +
-      "Please configure at least one account in channels[\"kakao-talkchannel\"].accounts"
+      "No Kakao TalkChannels configured. " +
+      "Please configure at least one talkchannel in channels[\"kakao-talkchannel\"].talkchannels"
     );
   }
 
@@ -116,13 +116,13 @@ export function getDefaultAccountId(cfg: unknown): string {
     return "default";
   }
 
-  // Otherwise return first account
+  // Otherwise return first talkchannel
   return ids[0];
 }
 
 /**
  * Internal helper: Extract Kakao channel config from plugin config
- * 
+ *
  * @param cfg - Plugin configuration object
  * @returns Kakao channel config or undefined
  */
