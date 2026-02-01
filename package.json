@@ -1,0 +1,57 @@
+{
+  "name": "@openclaw/kakao-talkchannel",
+  "version": "0.1.0",
+  "description": "Kakao TalkChannel integration for OpenClaw",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src tests --ext .ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"],
+    "channel": {
+      "id": "kakao-talkchannel",
+      "label": "Kakao TalkChannel",
+      "selectionLabel": "카카오톡 채널",
+      "docsPath": "/channels/kakao-talkchannel",
+      "docsLabel": "kakao-talkchannel",
+      "blurb": "KakaoTalk 채널 챗봇을 OpenClaw에 연결합니다",
+      "order": 80,
+      "quickstartAllowFrom": false
+    },
+    "install": {
+      "npmSpec": "@openclaw/kakao-talkchannel",
+      "localPath": "extensions/kakao-talkchannel",
+      "defaultChoice": "npm"
+    }
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "peerDependencies": {
+    "openclaw": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
