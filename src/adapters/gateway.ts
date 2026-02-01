@@ -17,6 +17,7 @@ export interface GatewayContext {
   onPairingComplete?: (kakaoUserId: string) => void;
   log?: {
     info: (msg: string) => void;
+    warn: (msg: string) => void;
     error: (msg: string) => void;
   };
 }
@@ -79,7 +80,7 @@ export const gatewayAdapter = {
       },
     };
 
-    return startRelayStream(account, onMessage, abortSignal, {}, callbacks);
+    return startRelayStream(account, onMessage, abortSignal, {}, callbacks, log);
   },
 
   stopAccount: async (_ctx: StopAccountContext): Promise<void> => {

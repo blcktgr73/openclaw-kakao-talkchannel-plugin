@@ -65,13 +65,17 @@ export async function startRelayStream(
   onMessage: (msg: InboundMessage) => Promise<void>,
   abortSignal: AbortSignal,
   opts: StreamOptions = {},
-  callbacks: StreamCallbacks = {}
+  callbacks: StreamCallbacks = {},
+  log?: { info: (msg: string) => void; warn: (msg: string) => void; error: (msg: string) => void }
 ): Promise<void> {
   const runtime = getKakaoRuntime();
+  const logger = log ?? runtime.logger;
   const options = { ...DEFAULT_STREAM_OPTIONS, ...opts };
 
   // Resolve token (may create new session)
+  logger.info(`[kakao:${talkchannel.talkchannelId}] Resolving token...`);
   const { token, relayUrl, isNewSession } = await resolveToken(talkchannel, callbacks);
+  logger.info(`[kakao:${talkchannel.talkchannelId}] Token resolved (newSession=${isNewSession})`);
   const { reconnectDelayMs, maxReconnectDelayMs } = talkchannel.config;
 
   let reconnectCount = 0;
@@ -89,27 +93,27 @@ export async function startRelayStream(
         await onMessage(msg);
       },
       onConnected: () => {
-        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] SSE connected to ${relayUrl}`);
+        logger.info(`[kakao:${talkchannel.talkchannelId}] SSE connected to ${relayUrl}`);
         reconnectCount = 0;
       },
       onError: (error) => {
         const sanitizedError = error.message.replace(/token=[^&\s]+/gi, "token=***");
-        runtime.logger.warn(`[kakao:${talkchannel.talkchannelId}] SSE error: ${sanitizedError}`);
+        logger.warn(`[kakao:${talkchannel.talkchannelId}] SSE error: ${sanitizedError}`);
       },
       onReconnect: (attempt) => {
         reconnectCount = attempt;
-        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt})`);
+        logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt})`);
 
         if (reconnectCount >= options.maxRetries) {
-          runtime.logger.error(`[kakao:${talkchannel.talkchannelId}] Max reconnect attempts exceeded`);
+          logger.error(`[kakao:${talkchannel.talkchannelId}] Max reconnect attempts exceeded`);
         }
       },
       onPairingComplete: (data) => {
-        runtime.logger.info(`[kakao:${talkchannel.talkchannelId}] Pairing complete: ${data.kakaoUserId}`);
+        logger.info(`[kakao:${talkchannel.talkchannelId}] Pairing complete: ${data.kakaoUserId}`);
         callbacks.onPairingComplete?.(data.kakaoUserId);
       },
       onPairingExpired: (reason) => {
-        runtime.logger.warn(`[kakao:${talkchannel.talkchannelId}] Pairing expired: ${reason}`);
+        logger.warn(`[kakao:${talkchannel.talkchannelId}] Pairing expired: ${reason}`);
         callbacks.onPairingExpired?.(reason);
       },
     },
