@@ -21,24 +21,25 @@ export interface ChannelConfigAdapter<T> {
 
 /**
  * Extract Kakao channel config from plugin config
+ * Returns empty object if not configured (will use schema defaults)
  */
-function getKakaoChannelConfig(cfg: unknown): KakaoChannelConfig | undefined {
+function getKakaoChannelConfig(cfg: unknown): KakaoChannelConfig {
   if (!cfg || typeof cfg !== "object") {
-    return undefined;
+    return {} as KakaoChannelConfig;
   }
 
   const configObj = cfg as Record<string, unknown>;
   const channels = configObj.channels;
 
   if (!channels || typeof channels !== "object") {
-    return undefined;
+    return {} as KakaoChannelConfig;
   }
 
   const channelsObj = channels as Record<string, unknown>;
   const kakao = channelsObj["kakao-talkchannel"];
 
   if (!kakao || typeof kakao !== "object") {
-    return undefined;
+    return {} as KakaoChannelConfig;
   }
 
   return kakao as KakaoChannelConfig;
@@ -46,18 +47,12 @@ function getKakaoChannelConfig(cfg: unknown): KakaoChannelConfig | undefined {
 
 /**
  * Resolve Kakao TalkChannel from configuration
+ * Uses schema defaults if no config provided
  */
 function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): ResolvedKakaoTalkChannel {
   const rawConfig = getKakaoChannelConfig(cfg);
 
-  if (!rawConfig) {
-    throw new Error(
-      "Kakao TalkChannel is not configured. " +
-      "Please add channels[\"kakao-talkchannel\"] section to your configuration."
-    );
-  }
-
-  // Validate and apply defaults using schema
+  // Validate and apply defaults using schema (empty object gets all defaults)
   const validationResult = KakaoChannelConfigSchema.safeParse(rawConfig);
 
   if (!validationResult.success) {
@@ -93,31 +88,17 @@ function resolveKakaoTalkChannel(cfg: unknown, _talkchannelId: string): Resolved
  * Kakao channel configuration adapter (simplified)
  */
 export const configAdapter: ChannelConfigAdapter<ResolvedKakaoTalkChannel> = {
-  listTalkChannelIds: (cfg) => {
-    try {
-      const kakaoConfig = getKakaoChannelConfig(cfg);
-      if (!kakaoConfig) {
-        return [];
-      }
-      return ["default"]; // Always single channel
-    } catch {
-      return [];
-    }
+  listTalkChannelIds: (_cfg) => {
+    // Always return single channel (uses defaults if no config)
+    return ["default"];
   },
 
   resolveTalkChannel: (cfg, talkchannelId) => {
     return resolveKakaoTalkChannel(cfg, talkchannelId);
   },
 
-  defaultTalkChannelId: (cfg) => {
-    const kakaoConfig = getKakaoChannelConfig(cfg);
-    if (!kakaoConfig) {
-      throw new Error(
-        "No Kakao TalkChannel configured. " +
-        "Please add channels[\"kakao-talkchannel\"] section to your configuration."
-      );
-    }
-    return "default"; // Always "default"
+  defaultTalkChannelId: (_cfg) => {
+    return "default";
   },
 
   isConfigured: (talkchannel) => {

@@ -8,7 +8,7 @@ import { configAdapter } from "../../../src/adapters/config";
 
 describe("ChannelConfigAdapter (Simplified)", () => {
   describe("listTalkChannelIds", () => {
-    it("should return ['default'] for valid config", () => {
+    it("should always return ['default'] (single channel)", () => {
       const cfg = {
         channels: {
           "kakao-talkchannel": {
@@ -21,25 +21,25 @@ describe("ChannelConfigAdapter (Simplified)", () => {
       expect(ids).toEqual(["default"]);
     });
 
-    it("should return empty array when kakao channel not configured", () => {
+    it("should return ['default'] even when kakao channel not configured", () => {
       const cfg = {
         channels: {},
       };
 
       const ids = configAdapter.listTalkChannelIds(cfg);
-      expect(ids).toEqual([]);
+      expect(ids).toEqual(["default"]);
     });
 
-    it("should return empty array when channels missing", () => {
+    it("should return ['default'] even when channels missing", () => {
       const cfg = {};
 
       const ids = configAdapter.listTalkChannelIds(cfg);
-      expect(ids).toEqual([]);
+      expect(ids).toEqual(["default"]);
     });
 
-    it("should return empty array when config is null or undefined", () => {
-      expect(configAdapter.listTalkChannelIds(null)).toEqual([]);
-      expect(configAdapter.listTalkChannelIds(undefined)).toEqual([]);
+    it("should return ['default'] even when config is null or undefined", () => {
+      expect(configAdapter.listTalkChannelIds(null)).toEqual(["default"]);
+      expect(configAdapter.listTalkChannelIds(undefined)).toEqual(["default"]);
     });
   });
 
@@ -80,22 +80,31 @@ describe("ChannelConfigAdapter (Simplified)", () => {
       expect(talkchannel.config.callbackTimeoutMs).toBe(55000);
     });
 
-    it("should throw error when kakao channel not configured", () => {
+    it("should use defaults when kakao channel not configured", () => {
       const cfg = {
         channels: {},
       };
 
-      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow(
-        /kakao.*not configured/i
-      );
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      expect(talkchannel.talkchannelId).toBe("default");
+      expect(talkchannel.config.enabled).toBe(true);
+      expect(talkchannel.config.dmPolicy).toBe("pairing");
     });
 
-    it("should throw error when channels missing", () => {
+    it("should use defaults when channels missing", () => {
       const cfg = {};
 
-      expect(() => configAdapter.resolveTalkChannel(cfg, "default")).toThrow(
-        /kakao.*not configured/i
-      );
+      const talkchannel = configAdapter.resolveTalkChannel(cfg, "default");
+      expect(talkchannel.talkchannelId).toBe("default");
+      expect(talkchannel.config.enabled).toBe(true);
+    });
+
+    it("should use defaults when config is null or undefined", () => {
+      const talkchannel1 = configAdapter.resolveTalkChannel(null, "default");
+      expect(talkchannel1.config.enabled).toBe(true);
+
+      const talkchannel2 = configAdapter.resolveTalkChannel(undefined, "default");
+      expect(talkchannel2.config.enabled).toBe(true);
     });
 
     it("should resolve relay mode settings", () => {
@@ -179,14 +188,18 @@ describe("ChannelConfigAdapter (Simplified)", () => {
       expect(id).toBe("default");
     });
 
-    it("should throw error when kakao channel not configured", () => {
+    it("should return 'default' even when kakao channel not configured", () => {
       const cfg = {
         channels: {},
       };
 
-      expect(() => configAdapter.defaultTalkChannelId(cfg)).toThrow(
-        /no.*kakao.*talkchannel.*configured/i
-      );
+      const id = configAdapter.defaultTalkChannelId(cfg);
+      expect(id).toBe("default");
+    });
+
+    it("should return 'default' even when config is null or undefined", () => {
+      expect(configAdapter.defaultTalkChannelId(null)).toBe("default");
+      expect(configAdapter.defaultTalkChannelId(undefined)).toBe("default");
     });
   });
 
