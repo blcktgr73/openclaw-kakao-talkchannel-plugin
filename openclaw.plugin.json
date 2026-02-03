@@ -1,10 +1,12 @@
 {
   "id": "kakao-talkchannel",
   "name": "Kakao TalkChannel",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kakao TalkChannel integration for OpenClaw",
   "main": "index.ts",
-  "channels": ["kakao-talkchannel"],
+  "channels": [
+    "kakao-talkchannel"
+  ],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -38,13 +40,20 @@
             },
             "dmPolicy": {
               "type": "string",
-              "enum": ["pairing", "allowlist", "open", "disabled"],
+              "enum": [
+                "pairing",
+                "allowlist",
+                "open",
+                "disabled"
+              ],
               "default": "pairing",
               "description": "DM policy for unauthorized users"
             },
             "allowFrom": {
               "type": "array",
-              "items": { "type": "string" },
+              "items": {
+                "type": "string"
+              },
               "description": "Allowed user IDs (when dmPolicy is allowlist)"
             }
           }
