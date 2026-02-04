@@ -33,6 +33,26 @@ OpenClaw에게 말하세요:
 | 플러그인이 안 됨 | "플러그인 진단해줘" |
 | 채널이 안 보임 | "게이트웨이 재시작해줘" |
 | 페어링이 안 됨 | "카카오톡 연결해줘" (처음부터 다시) |
+| 대화가 멈춤 / tool 에러 | `/reset` 또는 `/compact` 실행 |
+
+#### OpenClaw 세션 관리
+
+대화가 길어지면 OpenClaw 코어의 컴팩션 과정에서 tool 관련 에러가 발생할 수 있습니다:
+
+```
+messages.60.content.1: unexpected tooluseid found in toolresult blocks
+```
+
+이는 OpenClaw 코어의 알려진 버그로, 고아 toolResult를 transcript hygiene이 감지하지 못한 케이스입니다.
+
+**예방 및 해결 방법:**
+
+| 방법 | 언제 사용 | 효과 |
+|------|-----------|------|
+| `/compact` | 대화가 복잡해지기 전 | 히스토리 압축으로 문제 예방 |
+| `/reset` | 에러로 대화가 막혔을 때 | 세션 초기화로 즉시 해결 |
+
+> **권장**: 장시간 대화 시 주기적으로 `/compact`를 실행하세요.
 
 ---
 
