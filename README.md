@@ -6,15 +6,29 @@
 
 ---
 
-## 사용자 가이드
+## 설치
 
-### 설치
+### npm
+
+```bash
+npm install @openclaw/kakao-talkchannel
+```
+
+```bash
+pnpm add @openclaw/kakao-talkchannel
+```
+
+### OpenClaw CLI
 
 OpenClaw에게 말하세요:
 
 > "카카오톡 플러그인 설치해줘"
 
 그게 끝입니다. OpenClaw가 알아서 설치합니다.
+
+---
+
+## 사용자 가이드
 
 ### 카카오톡 연결
 

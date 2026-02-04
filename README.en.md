@@ -6,15 +6,29 @@ Connect KakaoTalk Channel to OpenClaw.
 
 ---
 
-## User Guide
+## Installation
 
-### Installation
+### npm
+
+```bash
+npm install @openclaw/kakao-talkchannel
+```
+
+```bash
+pnpm add @openclaw/kakao-talkchannel
+```
+
+### OpenClaw CLI
 
 Just ask OpenClaw:
 
 > "Install KakaoTalk plugin"
 
 That's it. OpenClaw handles the rest.
+
+---
+
+## User Guide
 
 ### Connect KakaoTalk
 
