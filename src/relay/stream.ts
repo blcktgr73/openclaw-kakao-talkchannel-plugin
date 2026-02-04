@@ -18,6 +18,23 @@ const DEFAULT_STREAM_OPTIONS: Required<StreamOptions> = {
 };
 
 /**
+ * Sanitize tokens and sensitive values from log messages.
+ * Masks Bearer tokens, token= params, sessionToken= params, and UUID-like patterns in auth context.
+ */
+export function sanitizeTokenFromLog(message: string): string {
+  let sanitized = message;
+  // Authorization header with Bearer (match the whole "Authorization: Bearer <token>")
+  sanitized = sanitized.replace(/Authorization:\s*Bearer\s+[^\s,;]+/gi, "Authorization: ***");
+  // Standalone Bearer token pattern (not preceded by "Authorization:")
+  sanitized = sanitized.replace(/Bearer\s+[^\s,;]+/gi, "Bearer ***");
+  // sessionToken=<value> pattern
+  sanitized = sanitized.replace(/sessionToken=[^&\s]+/gi, "sessionToken=***");
+  // token=<value> pattern (query params) — exclude already-handled sessionToken
+  sanitized = sanitized.replace(/(?<!session)token=[^&\s]+/gi, "token=***");
+  return sanitized;
+}
+
+/**
  * Resolve the authentication token for relay connection
  *
  * Priority:
@@ -86,6 +103,7 @@ export async function startRelayStream(
       sessionToken: token,
       reconnectDelayMs,
       maxReconnectDelayMs,
+      maxRetries: options.maxRetries,
     },
     {
       onMessage: async (msg) => {
@@ -97,16 +115,12 @@ export async function startRelayStream(
         reconnectCount = 0;
       },
       onError: (error) => {
-        const sanitizedError = error.message.replace(/token=[^&\s]+/gi, "token=***");
+        const sanitizedError = sanitizeTokenFromLog(error.message);
         logger.warn(`[kakao:${talkchannel.talkchannelId}] SSE error: ${sanitizedError}`);
       },
       onReconnect: (attempt) => {
         reconnectCount = attempt;
-        logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt})`);
-
-        if (reconnectCount >= options.maxRetries) {
-          logger.error(`[kakao:${talkchannel.talkchannelId}] Max reconnect attempts exceeded`);
-        }
+        logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt}/${options.maxRetries})`);
       },
       onPairingComplete: (data) => {
         logger.info(`[kakao:${talkchannel.talkchannelId}] Pairing complete: ${data.kakaoUserId}`);

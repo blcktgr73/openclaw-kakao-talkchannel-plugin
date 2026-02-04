@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   calculateReconnectDelay,
   parseSSEChunk,
@@ -41,11 +41,12 @@ describe("SSE Client", () => {
 data: {"id":"msg_1","timestamp":1234567890}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events, consumed } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(1);
       expect(events[0].event).toBe("message");
       expect(events[0].data).toEqual({ id: "msg_1", timestamp: 1234567890 });
+      expect(consumed).toBe(chunk.length);
     });
 
     it("should parse ping event", () => {
@@ -53,7 +54,7 @@ data: {"id":"msg_1","timestamp":1234567890}
 data: {}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(1);
       expect(events[0].event).toBe("ping");
@@ -65,7 +66,7 @@ data: {}
 data: {"code":"AUTH_FAILED","message":"Invalid token"}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(1);
       expect(events[0].event).toBe("error");
@@ -78,7 +79,7 @@ id: evt_123
 data: {"id":"msg_1"}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(1);
       expect(events[0].id).toBe("evt_123");
@@ -95,7 +96,7 @@ event: message
 data: {"id":"msg_2"}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(3);
       expect(events[0].event).toBe("ping");
@@ -103,7 +104,7 @@ data: {"id":"msg_2"}
       expect(events[2].event).toBe("message");
     });
 
-    it("should skip malformed JSON", () => {
+    it("should skip malformed JSON and report parseErrors", () => {
       const chunk = `event: message
 data: {invalid json}
 
@@ -111,23 +112,122 @@ event: message
 data: {"id":"msg_1"}
 
 `;
-      const events = parseSSEChunk(chunk);
+      const { events, parseErrors } = parseSSEChunk(chunk);
 
       expect(events).toHaveLength(1);
       expect(events[0].data).toEqual({ id: "msg_1" });
+      expect(parseErrors).toBe(1);
     });
 
-    it("should handle incomplete events", () => {
+    it("should return zero parseErrors for valid events", () => {
+      const chunk = `event: message
+data: {"id":"msg_1"}
+
+`;
+      const { events, parseErrors } = parseSSEChunk(chunk);
+
+      expect(events).toHaveLength(1);
+      expect(parseErrors).toBe(0);
+    });
+
+    it("should handle incomplete events (not consumed)", () => {
       const chunk = `event: message
 data: {"id":"msg_1"}`;
 
-      const events = parseSSEChunk(chunk);
+      const { events, consumed } = parseSSEChunk(chunk);
       expect(events).toHaveLength(0);
+      expect(consumed).toBe(0);
     });
 
     it("should handle empty chunk", () => {
-      const events = parseSSEChunk("");
+      const { events, consumed } = parseSSEChunk("");
       expect(events).toHaveLength(0);
+      expect(consumed).toBe(0);
+    });
+
+    // New tests for consumed byte tracking
+    it("should return correct consumed bytes for complete events", () => {
+      const event1 = "event: message\ndata: {\"id\":\"1\"}\n\n";
+      const incomplete = "event: message\ndata: {\"id\":\"2\"}";
+      const chunk = event1 + incomplete;
+
+      const { events, consumed } = parseSSEChunk(chunk);
+
+      expect(events).toHaveLength(1);
+      expect(consumed).toBe(event1.length);
+    });
+
+    it("should not consume incomplete events at end of buffer", () => {
+      const chunk = `event: ping
+data: {}
+
+event: message
+data: {"id":"msg_1"}`;
+
+      const { events, consumed } = parseSSEChunk(chunk);
+
+      // Only the ping event's part should be consumed
+      expect(events).toHaveLength(1);
+      expect(events[0].event).toBe("ping");
+      expect(consumed).toBeGreaterThan(0);
+      expect(consumed).toBeLessThan(chunk.length);
+    });
+
+    it("should correctly handle split events across multiple chunks", () => {
+      const fullChunk = `event: message\ndata: {"id":"msg_1"}\n\n`;
+      const partial = `event: message\ndata: {"id":"ms`;
+
+      // First chunk: complete event + partial
+      const { events: events1, consumed: consumed1 } = parseSSEChunk(fullChunk + partial);
+      expect(events1).toHaveLength(1);
+
+      // Remaining buffer
+      const remaining = (fullChunk + partial).slice(consumed1);
+      expect(remaining).toBe(partial);
+
+      // Second chunk: remaining + rest of event
+      const { events: events2 } = parseSSEChunk(remaining + `g_2"}\n\n`);
+      expect(events2).toHaveLength(1);
+      expect(events2[0].data).toEqual({ id: "msg_2" });
+    });
+  });
+
+  describe("connectSSE maxRetries", () => {
+    it("should throw after maxRetries is exceeded", async () => {
+      const { connectSSE } = await import("../../../src/relay/sse");
+
+      // Mock fetch to always fail, triggering reconnect attempts
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockRejectedValue(new Error("Connection failed"));
+
+      const controller = new AbortController();
+      const onReconnect = vi.fn();
+      const onError = vi.fn();
+
+      try {
+        await expect(
+          connectSSE(
+            {
+              relayUrl: "https://example.com",
+              sessionToken: "test-token",
+              reconnectDelayMs: 1,
+              maxReconnectDelayMs: 1,
+              maxRetries: 3,
+            },
+            {
+              onMessage: vi.fn(),
+              onReconnect,
+              onError,
+            },
+            controller.signal
+          )
+        ).rejects.toThrow("Max reconnect attempts (3) exceeded");
+
+        expect(onReconnect).toHaveBeenCalledTimes(3);
+        expect(onReconnect).toHaveBeenLastCalledWith(3);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 });
