@@ -228,44 +228,51 @@ async function handleHelpCommand(
       outputs: [
         {
           carousel: {
-            type: "basicCard",
+            type: "itemCard",
             items: [
               {
-                title: "기본 사용법",
-                description: "그냥 대화하세요!\nOpenClaw 에이전트가 자동으로 응답합니다.",
                 thumbnail: {
                   imageUrl: "https://raw.githubusercontent.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/main/images/openclaw-icon.png",
                   fixedRatio: true
                 },
+                head: {
+                  title: "기본 사용법"
+                },
+                itemList: [
+                  { title: "/help, /?", description: "도움말 보기" },
+                  { title: "/session, /s", description: "세션 정보 확인" },
+                  { title: "/relay", description: "서버 상태 확인" },
+                  { title: "/about", description: "플러그인 정보" }
+                ],
                 buttons: [
                   {
-                    label: "/session",
-                    action: "message",
-                    messageText: "/session"
-                  },
-                  {
-                    label: "/relay",
-                    action: "message",
-                    messageText: "/relay"
+                    label: "GitHub",
+                    action: "webLink",
+                    webLinkUrl: "https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin"
                   }
-                ],
-                buttonLayout: "horizontal"
+                ]
               },
               {
-                title: "세션 관리",
-                description: "OpenClaw 코어 버그로 인해 대화가 길어지면 tool 에러가 발생할 수 있습니다.\n\n정기적으로 /compact 하거나 문제 발생 시 /reset 하세요.",
                 thumbnail: {
                   imageUrl: "https://raw.githubusercontent.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/main/images/lobster-emoji-large-google.png",
                   fixedRatio: true
                 },
+                head: {
+                  title: "세션 관리"
+                },
+                itemList: [
+                  { title: "/compact", description: "히스토리 압축" },
+                  { title: "/reset", description: "세션 초기화" },
+                  { title: "/session, /s", description: "세션 정보 확인" }
+                ],
                 buttons: [
                   {
-                    label: "/compact",
+                    label: "compact",
                     action: "message",
                     messageText: "/compact"
                   },
                   {
-                    label: "/reset",
+                    label: "reset",
                     action: "message",
                     messageText: "/reset"
                   }
@@ -273,12 +280,39 @@ async function handleHelpCommand(
                 buttonLayout: "horizontal"
               },
               {
-                title: "링크 & 정보",
-                description: "GitHub에서 소스코드 확인 및 이슈 제보\n\nREADME에서 자세한 사용법을 확인하세요.",
+                thumbnail: {
+                  imageUrl: "https://raw.githubusercontent.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/main/images/github-social.png",
+                  fixedRatio: true
+                },
+                head: {
+                  title: "릴레이 서버"
+                },
+                itemList: [
+                  { title: "/pair", description: "페어링 코드로 연결" },
+                  { title: "/unpair", description: "연결 해제" },
+                  { title: "/status", description: "연결 상태 확인" },
+                  { title: "/code", description: "접속 코드 생성" }
+                ],
+                buttons: [
+                  {
+                    label: "릴레이 서버",
+                    action: "webLink",
+                    webLinkUrl: "https://k.tess.dev"
+                  }
+                ]
+              },
+              {
                 thumbnail: {
                   imageUrl: "https://raw.githubusercontent.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/main/images/github-logo.webp",
                   fixedRatio: true
                 },
+                head: {
+                  title: "링크 & 정보"
+                },
+                itemList: [
+                  { title: "/github", description: "소스코드 보기" },
+                  { title: "/about", description: "플러그인 정보" }
+                ],
                 buttons: [
                   {
                     label: "이슈 제보",
@@ -295,6 +329,23 @@ async function handleHelpCommand(
               }
             ]
           }
+        }
+      ],
+      quickReplies: [
+        {
+          label: "session",
+          action: "message",
+          messageText: "/session"
+        },
+        {
+          label: "reset",
+          action: "message",
+          messageText: "/reset"
+        },
+        {
+          label: "about",
+          action: "message",
+          messageText: "/about"
         }
       ]
     }
@@ -395,10 +446,6 @@ async function handleAboutCommand(
               {
                 title: "설명",
                 description: "Kakao TalkChannel ↔ OpenClaw 연결"
-              },
-              {
-                title: "Node 요구사항",
-                description: ">=18"
               }
             ],
             buttons: [
@@ -537,21 +584,17 @@ async function handleSessionCommand(
             description: sessionInfo,
             buttons: [
               {
-                label: "/compact 실행",
+                label: "compact",
                 action: "message",
                 messageText: "/compact"
               },
               {
-                label: "릴레이 상태",
+                label: "reset",
                 action: "message",
-                messageText: "/relay"
-              },
-              {
-                label: "도움말",
-                action: "message",
-                messageText: "/help"
+                messageText: "/reset"
               }
-            ]
+            ],
+            buttonLayout: "horizontal"
           }
         }
       ]
@@ -577,6 +620,7 @@ const PLUGIN_COMMANDS: Record<string, CommandHandler> = {
   '/about': handleAboutCommand,
   '/relay': handleRelayCommand,
   '/session': handleSessionCommand,
+  '/s': handleSessionCommand,  // session 단축키
 };
 
 /**
