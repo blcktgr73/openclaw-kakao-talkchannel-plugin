@@ -165,6 +165,49 @@ openclaw plugins install {경로}
 
 ---
 
+## 릴레이 서버
+
+이 플러그인은 **릴레이 서버**를 통해 카카오톡 채널과 통신합니다. 두 가지 방식으로 사용할 수 있습니다.
+
+### 방식 1: 기본 채널 사용 (권장)
+
+설치 후 별도 설정 없이 바로 사용할 수 있습니다. 기본 릴레이 서버(`k.tess.dev`)와 공유 카카오톡 채널([Samantha](http://pf.kakao.com/_scexbC))이 제공됩니다.
+
+- 설정 불필요, 설치 즉시 동작
+- 페어링 코드로 OpenClaw 인스턴스에 연결
+- 여러 사용자가 하나의 채널을 공유
+
+### 방식 2: 별도 릴레이 서버 배포
+
+자체 카카오톡 채널과 릴레이 서버를 운영하고 싶다면 직접 배포할 수 있습니다.
+
+1. [kakao-talkchannel-relay-openclaw](https://github.com/kakao-bart-lee/kakao-talkchannel-relay-openclaw) 저장소에서 릴레이 서버 배포
+2. [카카오 i 오픈빌더](https://i.kakao.com/)에서 챗봇 생성 및 스킬 연결 (릴레이 서버의 [설정 가이드](https://github.com/kakao-bart-lee/kakao-talkchannel-relay-openclaw/blob/main/docs/setup-guide.md) 참고)
+3. 릴레이 서버 Admin UI에서 Account 생성 후 `relayToken` 발급
+4. 플러그인 설정에서 `relayUrl`과 `relayToken` 지정
+
+```json
+{
+  "channels": {
+    "kakao-talkchannel": {
+      "accounts": {
+        "default": {
+          "relayUrl": "https://your-relay-server.example.com",
+          "relayToken": "발급받은_토큰"
+        }
+      }
+    }
+  }
+}
+```
+
+자체 릴레이 서버를 사용하면:
+- 독립적인 카카오톡 채널 운영 가능
+- 채널 브랜딩 및 프로필 커스터마이징
+- 메시지 로그 및 Admin UI 직접 관리
+
+---
+
 ## 설정 레퍼런스
 
 대부분의 경우 설정이 필요 없습니다. 설치 후 바로 사용 가능합니다.
@@ -195,8 +238,8 @@ openclaw plugins install {경로}
 | 옵션 | 설명 | 기본값 |
 |------|------|--------|
 | `channelId` | 채널 식별자 | 자동 |
-| `relayUrl` | 릴레이 서버 | `https://k.tess.dev/` |
-| `relayToken` | 릴레이 토큰 | 환경변수 또는 자동 |
+| `relayUrl` | 릴레이 서버 URL ([별도 배포](#방식-2-별도-릴레이-서버-배포) 시 변경) | `https://k.tess.dev/` |
+| `relayToken` | 릴레이 인증 토큰 (별도 서버 사용 시 필수) | 환경변수 또는 자동 |
 
 ### 설정 예시
 
