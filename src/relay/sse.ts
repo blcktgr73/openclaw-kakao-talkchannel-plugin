@@ -39,7 +39,7 @@ export function parseSSEChunk(chunk: string): { events: SSEEvent[]; consumed: nu
     const block = chunk.slice(consumed, boundary);
     const endPos = boundary + 2; // include the \n\n
 
-    let currentEvent: Partial<{ event: string; data: string; id: string }> = {};
+    const currentEvent: Partial<{ event: string; data: string; id: string }> = {};
     const lines = block.split("\n");
 
     for (const line of lines) {

@@ -95,8 +95,6 @@ export async function startRelayStream(
   logger.info(`[kakao:${talkchannel.talkchannelId}] Token resolved (newSession=${isNewSession})`);
   const { reconnectDelayMs, maxReconnectDelayMs } = talkchannel.config;
 
-  let reconnectCount = 0;
-
   await connectSSE(
     {
       relayUrl,
@@ -107,19 +105,16 @@ export async function startRelayStream(
     },
     {
       onMessage: async (msg) => {
-        reconnectCount = 0;
         await onMessage(msg);
       },
       onConnected: () => {
         logger.info(`[kakao:${talkchannel.talkchannelId}] SSE connected to ${relayUrl}`);
-        reconnectCount = 0;
       },
       onError: (error) => {
         const sanitizedError = sanitizeTokenFromLog(error.message);
         logger.warn(`[kakao:${talkchannel.talkchannelId}] SSE error: ${sanitizedError}`);
       },
       onReconnect: (attempt) => {
-        reconnectCount = attempt;
         logger.info(`[kakao:${talkchannel.talkchannelId}] SSE reconnecting (attempt ${attempt}/${options.maxRetries})`);
       },
       onPairingComplete: (data) => {
