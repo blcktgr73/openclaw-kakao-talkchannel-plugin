@@ -23,7 +23,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "lint": "eslint src tests --ext .ts",
+    "lint": "eslint src tests index.ts",
     "typecheck": "tsc --noEmit"
   },
   "openclaw": {
@@ -41,7 +41,7 @@
       "quickstartAllowFrom": false
     },
     "compatibility": {
-      "testedWith": "2026.2.6"
+      "testedWith": "2026.2.13"
     },
     "install": {
       "npmSpec": "@openclaw/kakao-talkchannel",
@@ -56,13 +56,17 @@
     "openclaw": ">=2026.1.29"
   },
   "devDependencies": {
+    "@eslint/js": "^9.21.0",
     "@types/node": "^20.10.0",
     "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^9.21.0",
+    "openclaw": "2026.2.13",
+    "typescript-eslint": "^8.24.1",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0",
     "zod-to-json-schema": "^3.25.1"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22.12.0"
   }
 }

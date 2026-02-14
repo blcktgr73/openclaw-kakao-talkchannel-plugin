@@ -721,8 +721,7 @@ async function handleInboundMessage(
   cfg: unknown,
   log?: GatewayContext["log"]
 ): Promise<void> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const runtime = getKakaoRuntime() as any;
+  const runtime = getKakaoRuntime();
   const channel = runtime.channel;
 
   log?.info(`[kakao-talkchannel:${account.talkchannelId}] Received message: ${msg.id}`);
@@ -778,13 +777,16 @@ async function handleInboundMessage(
   const ctxPayload = channel.reply.finalizeInboundContext(rawCtx);
 
   // Dispatch to OpenClaw agent system
+  // NOTE: Kakao replies are sent via relay `sendReply` in `deliver`, not core
+  // `infra/outbound/deliver.ts`, so write-ahead queue/hook behavior differs.
   await channel.reply.dispatchReplyWithBufferedBlockDispatcher({
     ctx: ctxPayload,
     cfg,
     dispatcherOptions: {
-      deliver: async (payload: DeliverPayload) => {
+      deliver: async (payload: unknown) => {
+        const outboundPayload = payload as DeliverPayload;
         const template: KakaoSkillResponse["template"] = { outputs: [] };
-        const kakaoData = payload.channelData?.kakao;
+        const kakaoData = outboundPayload.channelData?.kakao;
 
         if (kakaoData) {
           const channelOutputs = buildOutputsFromChannelData(kakaoData);
@@ -796,15 +798,15 @@ async function handleInboundMessage(
         }
 
         if (template.outputs.length === 0) {
-          if (payload.mediaUrls && payload.mediaUrls.length > 0) {
-            for (const url of payload.mediaUrls.slice(0, 3)) {
+          if (outboundPayload.mediaUrls && outboundPayload.mediaUrls.length > 0) {
+            for (const url of outboundPayload.mediaUrls.slice(0, 3)) {
               template.outputs.push({ simpleImage: { imageUrl: url } });
             }
           }
 
-          if (payload.text) {
+          if (outboundPayload.text) {
             // 1️⃣ JSON 카드 감지 시도
-            const cardData = tryParseKakaoCard(payload.text);
+            const cardData = tryParseKakaoCard(outboundPayload.text);
             if (cardData) {
               // 카드로 변환
               const cardOutputs = buildOutputsFromChannelData(cardData);
@@ -816,7 +818,7 @@ async function handleInboundMessage(
               }
             } else {
               // 2️⃣ 일반 텍스트
-              const plainText = stripMarkdown(payload.text);
+              const plainText = stripMarkdown(outboundPayload.text);
               template.outputs.push({ simpleText: { text: plainText } });
             }
           }

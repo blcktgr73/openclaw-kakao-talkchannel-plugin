@@ -6,7 +6,7 @@ Guide for AI coding agents working in this repository.
 
 OpenClaw Kakao TalkChannel Plugin - connects KakaoTalk channels to OpenClaw platform.
 
-- **Runtime**: Node.js 18+, ESM modules (`"type": "module"`)
+- **Runtime**: Node.js 22.12+, ESM modules (`"type": "module"`)
 - **Language**: TypeScript 5.3+ with strict mode
 - **Package Manager**: pnpm
 
