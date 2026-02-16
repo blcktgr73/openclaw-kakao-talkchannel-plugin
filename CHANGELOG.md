@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.1](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/compare/kakao-talkchannel-v0.4.0...kakao-talkchannel-v0.4.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* 401/410 에러 시 토큰 무효화 및 재연결 중단 ([#34](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/issues/34)) ([6351b44](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/6351b44509e463413b470dd78ed0ba7da69696ee))
+* resolve relayToken missing error in sendReply ([#31](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/issues/31)) ([e7d744d](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/e7d744d075586c326c0b4ae6346d0e2d4528e407))
+* sendReply 401/410 에러 시 토큰 무효화 및 재연결 중단 ([0bf0bec](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/0bf0bec8245ef40cc6932774c4ff8c1b409e24ec))
+* use DEFAULT_RELAY_URL constant instead of hardcoded URL ([5ead655](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/5ead655f2be066a8ee0cfa2be97662ac0d77d372))
+* 페어링 성공 후 메시지 송신 시 relayToken 에러 수정 ([#31](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/issues/31)) ([090e67a](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/090e67a979b2aaf69bae583a5797b990eb283ebb))
+
 ## [0.4.0](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/compare/kakao-talkchannel-v0.3.2...kakao-talkchannel-v0.4.0) (2026-02-08)
 
 
