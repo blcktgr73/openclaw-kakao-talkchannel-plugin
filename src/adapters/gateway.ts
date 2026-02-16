@@ -21,6 +21,7 @@ import { getKakaoRuntime } from "../runtime.js";
 import { sendReply } from "../relay/client.js";
 import { stripMarkdown } from "../kakao/response.js";
 import { PLUGIN_VERSION } from "../version.js";
+import { DEFAULT_RELAY_URL } from "../config/schema.js";
 
 /**
  * 사용자별 메시지 활동 추적
@@ -732,7 +733,7 @@ async function handleInboundMessage(
   // Get relay config for command handlers
   // Priority: activeSessionTokenMap > account.config.sessionToken > account.config.relayToken
   const activeSession = activeSessionTokenMap.get(accountId);
-  const relayUrl = activeSession?.relayUrl ?? account.config.relayUrl ?? "https://kakao-relay.talelapse.in";
+  const relayUrl = activeSession?.relayUrl ?? account.config.relayUrl ?? DEFAULT_RELAY_URL;
   const relayToken = activeSession?.sessionToken ?? account.config.sessionToken ?? account.config.relayToken ?? "";
 
   // 플러그인 커맨드 체크
