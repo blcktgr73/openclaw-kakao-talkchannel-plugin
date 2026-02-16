@@ -7,6 +7,7 @@ import {
   sendReply,
   healthCheck,
   parseErrorBody,
+  RelayHttpError,
 } from "../../../src/relay/client";
 
 global.fetch = vi.fn();
@@ -135,6 +136,70 @@ describe("Relay Client", () => {
         /relayToken is required/
       );
     });
+
+    it("should throw RelayHttpError on 401 response", async () => {
+      const response: KakaoSkillResponse = { version: "2.0" };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        json: async () => ({ error: "Invalid token" }),
+      } as Response);
+
+      try {
+        await sendReply(baseConfig, "msg_auth", response);
+        expect.fail("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(RelayHttpError);
+        const httpErr = err as RelayHttpError;
+        expect(httpErr.status).toBe(401);
+        expect(httpErr.statusText).toBe("Unauthorized");
+        expect(httpErr.isAuthError).toBe(true);
+      }
+    });
+
+    it("should throw RelayHttpError on 410 response", async () => {
+      const response: KakaoSkillResponse = { version: "2.0" };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 410,
+        statusText: "Gone",
+        json: async () => ({ error: "Session expired" }),
+      } as Response);
+
+      try {
+        await sendReply(baseConfig, "msg_gone", response);
+        expect.fail("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(RelayHttpError);
+        const httpErr = err as RelayHttpError;
+        expect(httpErr.status).toBe(410);
+        expect(httpErr.isAuthError).toBe(true);
+      }
+    });
+
+    it("should throw RelayHttpError with isAuthError=false for non-auth errors", async () => {
+      const response: KakaoSkillResponse = { version: "2.0" };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        json: async () => ({ error: "Server error" }),
+      } as Response);
+
+      try {
+        await sendReply(baseConfig, "msg_500", response);
+        expect.fail("should have thrown");
+      } catch (err) {
+        expect(err).toBeInstanceOf(RelayHttpError);
+        const httpErr = err as RelayHttpError;
+        expect(httpErr.status).toBe(500);
+        expect(httpErr.isAuthError).toBe(false);
+      }
+    });
   });
 
   describe("healthCheck", () => {
@@ -226,6 +291,36 @@ describe("Relay Client", () => {
 
     it("should handle number input", () => {
       expect(parseErrorBody(42)).toBe("42");
+    });
+  });
+
+  describe("RelayHttpError", () => {
+    it("should be an instance of Error", () => {
+      const err = new RelayHttpError(401, "Unauthorized", "Invalid token");
+      expect(err).toBeInstanceOf(Error);
+      expect(err.name).toBe("RelayHttpError");
+    });
+
+    it("should set isAuthError=true for 401", () => {
+      const err = new RelayHttpError(401, "Unauthorized", "Invalid token");
+      expect(err.isAuthError).toBe(true);
+    });
+
+    it("should set isAuthError=true for 410", () => {
+      const err = new RelayHttpError(410, "Gone", "Session expired");
+      expect(err.isAuthError).toBe(true);
+    });
+
+    it("should set isAuthError=false for other statuses", () => {
+      expect(new RelayHttpError(400, "Bad Request", "err").isAuthError).toBe(false);
+      expect(new RelayHttpError(403, "Forbidden", "err").isAuthError).toBe(false);
+      expect(new RelayHttpError(404, "Not Found", "err").isAuthError).toBe(false);
+      expect(new RelayHttpError(500, "Internal", "err").isAuthError).toBe(false);
+    });
+
+    it("should include status in message", () => {
+      const err = new RelayHttpError(401, "Unauthorized", "Invalid token");
+      expect(err.message).toBe("HTTP 401 Unauthorized: Invalid token");
     });
   });
 

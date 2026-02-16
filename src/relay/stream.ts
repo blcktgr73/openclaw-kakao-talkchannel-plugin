@@ -12,6 +12,7 @@ export interface StreamCallbacks {
   onPairingComplete?: (kakaoUserId: string) => void;
   onPairingExpired?: (reason: string) => void;
   onTokenResolved?: (sessionToken: string, relayUrl: string) => void;
+  onSessionInvalidated?: (status: number) => void;
 }
 
 const DEFAULT_STREAM_OPTIONS: Required<StreamOptions> = {
@@ -129,6 +130,10 @@ export async function startRelayStream(
       onPairingExpired: (reason) => {
         logger.warn(`[kakao:${talkchannel.talkchannelId}] Pairing expired: ${reason}`);
         callbacks.onPairingExpired?.(reason);
+      },
+      onSessionInvalidated: (status) => {
+        logger.warn(`[kakao:${talkchannel.talkchannelId}] Session invalidated: HTTP ${status}`);
+        callbacks.onSessionInvalidated?.(status);
       },
     },
     abortSignal
