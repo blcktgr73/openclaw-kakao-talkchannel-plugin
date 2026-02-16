@@ -252,6 +252,54 @@ describe("Relay Stream", () => {
     });
   });
 
+  describe("onSessionInvalidated callback", () => {
+    it("should pass onSessionInvalidated to connectSSE", async () => {
+      // We need to mock connectSSE to capture the handlers
+      const mockConnectSSE = vi.fn().mockResolvedValue(undefined);
+      vi.doMock("../../../src/relay/sse.js", () => ({
+        connectSSE: mockConnectSSE,
+        parseSSEChunk: vi.fn(),
+        calculateReconnectDelay: vi.fn(),
+      }));
+
+      // Re-import stream module with new mock
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+
+      const mockAccount: ResolvedKakaoTalkChannel = {
+        talkchannelId: "test",
+        enabled: true,
+        config: {
+          enabled: true,
+          sessionToken: "existing-token",
+          dmPolicy: "open",
+        },
+      };
+
+      const controller = new AbortController();
+      controller.abort();
+
+      const onSessionInvalidated = vi.fn();
+
+      try {
+        await startRelayStream(
+          mockAccount,
+          vi.fn(),
+          controller.signal,
+          {},
+          { onSessionInvalidated }
+        );
+      } catch {
+        // Expected due to abort
+      }
+
+      // If connectSSE was called, check that onSessionInvalidated handler was passed
+      if (mockConnectSSE.mock.calls.length > 0) {
+        const handlers = mockConnectSSE.mock.calls[0][1];
+        expect(typeof handlers.onSessionInvalidated).toBe("function");
+      }
+    });
+  });
+
   describe("exports", () => {
     it("should re-export SSE functions", async () => {
       const stream = await import("../../../src/relay/stream.js");

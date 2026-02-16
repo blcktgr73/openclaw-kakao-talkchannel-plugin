@@ -201,6 +201,64 @@ describe("Gateway Adapter (Simplified)", () => {
     });
   });
 
+  describe("startAccount session invalidation", () => {
+    it("should invalidate token on onSessionInvalidated callback", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const mockStartRelayStream = vi.mocked(startRelayStream);
+
+      // First: store a token via onTokenResolved
+      // Then: simulate session invalidation via onSessionInvalidated
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("session-token-abc", "https://relay.example.com");
+          callbacks?.onSessionInvalidated?.(401);
+        }
+      );
+
+      const logWarn = vi.fn();
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "invalidation-test",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: { ...mockLog, warn: logWarn },
+      } as any);
+
+      // Verify that token invalidation was logged
+      expect(logWarn).toHaveBeenCalledWith(
+        expect.stringContaining("Session token invalidated")
+      );
+      expect(logWarn).toHaveBeenCalledWith(
+        expect.stringContaining("SSE HTTP 401")
+      );
+    });
+
+    it("should invalidate token on 410 session invalidation", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const mockStartRelayStream = vi.mocked(startRelayStream);
+
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("session-token-def", "https://relay.example.com");
+          callbacks?.onSessionInvalidated?.(410);
+        }
+      );
+
+      const logWarn = vi.fn();
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "invalidation-410",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: { ...mockLog, warn: logWarn },
+      } as any);
+
+      expect(logWarn).toHaveBeenCalledWith(
+        expect.stringContaining("SSE HTTP 410")
+      );
+    });
+  });
+
   describe("stopAccount", () => {
     it("should stop account", async () => {
       const ctx = {

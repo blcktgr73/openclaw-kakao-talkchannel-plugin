@@ -192,6 +192,131 @@ data: {"id":"msg_1"}`;
     });
   });
 
+  describe("connectSSE session invalidation", () => {
+    it("should call onSessionInvalidated and throw on 401 without reconnecting", async () => {
+      const { connectSSE } = await import("../../../src/relay/sse");
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+      });
+
+      const controller = new AbortController();
+      const onSessionInvalidated = vi.fn();
+      const onReconnect = vi.fn();
+      const onError = vi.fn();
+
+      try {
+        await expect(
+          connectSSE(
+            {
+              relayUrl: "https://example.com",
+              sessionToken: "expired-token",
+              reconnectDelayMs: 1,
+              maxReconnectDelayMs: 1,
+              maxRetries: 5,
+            },
+            {
+              onMessage: vi.fn(),
+              onSessionInvalidated,
+              onReconnect,
+              onError,
+            },
+            controller.signal
+          )
+        ).rejects.toThrow("SSE session invalidated: HTTP 401");
+
+        expect(onSessionInvalidated).toHaveBeenCalledWith(401);
+        expect(onReconnect).not.toHaveBeenCalled();
+        expect(onError).toHaveBeenCalledTimes(1);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("should call onSessionInvalidated and throw on 410 without reconnecting", async () => {
+      const { connectSSE } = await import("../../../src/relay/sse");
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 410,
+        statusText: "Gone",
+      });
+
+      const controller = new AbortController();
+      const onSessionInvalidated = vi.fn();
+      const onReconnect = vi.fn();
+
+      try {
+        await expect(
+          connectSSE(
+            {
+              relayUrl: "https://example.com",
+              sessionToken: "expired-token",
+              reconnectDelayMs: 1,
+              maxReconnectDelayMs: 1,
+              maxRetries: 5,
+            },
+            {
+              onMessage: vi.fn(),
+              onSessionInvalidated,
+              onReconnect,
+            },
+            controller.signal
+          )
+        ).rejects.toThrow("SSE session invalidated: HTTP 410");
+
+        expect(onSessionInvalidated).toHaveBeenCalledWith(410);
+        expect(onReconnect).not.toHaveBeenCalled();
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+
+    it("should still reconnect on non-auth HTTP errors (e.g., 503)", async () => {
+      const { connectSSE } = await import("../../../src/relay/sse");
+
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        statusText: "Service Unavailable",
+      });
+
+      const controller = new AbortController();
+      const onSessionInvalidated = vi.fn();
+      const onReconnect = vi.fn();
+
+      try {
+        await expect(
+          connectSSE(
+            {
+              relayUrl: "https://example.com",
+              sessionToken: "valid-token",
+              reconnectDelayMs: 1,
+              maxReconnectDelayMs: 1,
+              maxRetries: 2,
+            },
+            {
+              onMessage: vi.fn(),
+              onSessionInvalidated,
+              onReconnect,
+            },
+            controller.signal
+          )
+        ).rejects.toThrow("Max reconnect attempts (2) exceeded");
+
+        expect(onSessionInvalidated).not.toHaveBeenCalled();
+        expect(onReconnect).toHaveBeenCalledTimes(2);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+    });
+  });
+
   describe("connectSSE maxRetries", () => {
     it("should throw after maxRetries is exceeded", async () => {
       const { connectSSE } = await import("../../../src/relay/sse");

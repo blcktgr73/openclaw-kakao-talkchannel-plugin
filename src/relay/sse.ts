@@ -11,6 +11,7 @@ export interface SSEHandlers {
   onConnected?: () => void;
   onPairingComplete?: (data: { kakaoUserId: string; pairedAt: string }) => void;
   onPairingExpired?: (reason: string) => void;
+  onSessionInvalidated?: (status: number) => void;
 }
 
 export function calculateReconnectDelay(
@@ -142,6 +143,10 @@ export async function connectSSE(
       });
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 410) {
+          handlers.onSessionInvalidated?.(response.status);
+          throw new Error(`SSE session invalidated: HTTP ${response.status}`);
+        }
         throw new Error(`SSE connection failed: HTTP ${response.status}`);
       }
 
@@ -205,6 +210,13 @@ export async function connectSSE(
       }
 
       const err = error instanceof Error ? error : new Error(String(error));
+
+      // 401/410: 세션 무효화 → 재연결 없이 즉시 상위로 전파
+      if (err.message.startsWith("SSE session invalidated")) {
+        handlers.onError?.(err);
+        throw err;
+      }
+
       handlers.onError?.(err);
 
       reconnectAttempt++;

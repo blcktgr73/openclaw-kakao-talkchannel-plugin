@@ -18,7 +18,7 @@ import type {
 } from "../types.js";
 import { startRelayStream, type StreamCallbacks } from "../relay/stream.js";
 import { getKakaoRuntime } from "../runtime.js";
-import { sendReply } from "../relay/client.js";
+import { sendReply, RelayHttpError } from "../relay/client.js";
 import { stripMarkdown } from "../kakao/response.js";
 import { PLUGIN_VERSION } from "../version.js";
 import { DEFAULT_RELAY_URL } from "../config/schema.js";
@@ -235,6 +235,17 @@ const pendingPairingInfoMap = new Map<string, { pairingCode: string; expiresIn: 
 
 // Store for active session tokens (keyed by accountId)
 const activeSessionTokenMap = new Map<string, { sessionToken: string; relayUrl: string }>();
+
+function invalidateSessionToken(
+  accountId: string,
+  reason: string,
+  log?: GatewayContext["log"]
+): void {
+  const deleted = activeSessionTokenMap.delete(accountId);
+  if (deleted) {
+    log?.warn(`[kakao-talkchannel] Session token invalidated for ${accountId}: ${reason}`);
+  }
+}
 
 export function getPendingPairingInfo(accountId?: string): { pairingCode: string; expiresIn: number } | null {
   if (accountId) {
@@ -874,6 +885,9 @@ async function handleInboundMessage(
           );
           log?.info(`[kakao-talkchannel:${account.talkchannelId}] Reply sent for ${msg.id}`);
         } catch (err) {
+          if (err instanceof RelayHttpError && err.isAuthError) {
+            invalidateSessionToken(accountId, `sendReply HTTP ${err.status}`, log);
+          }
           const errMsg = err instanceof Error ? err.message : String(err);
           log?.error(`[kakao-talkchannel:${account.talkchannelId}] Reply failed: ${errMsg}`);
         }
@@ -921,6 +935,9 @@ export const gatewayAdapter = {
       },
       onPairingExpired: (reason) => {
         log?.info(`[kakao-talkchannel:${account.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
+      },
+      onSessionInvalidated: (status) => {
+        invalidateSessionToken(accountId, `SSE HTTP ${status}`, log);
       },
     };
 

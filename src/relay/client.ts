@@ -6,6 +6,22 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 10000;
 
+const AUTH_ERROR_STATUSES = new Set([401, 410]);
+
+export class RelayHttpError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+  readonly isAuthError: boolean;
+
+  constructor(status: number, statusText: string, detail: string) {
+    super(`HTTP ${status} ${statusText}: ${detail}`);
+    this.name = "RelayHttpError";
+    this.status = status;
+    this.statusText = statusText;
+    this.isAuthError = AUTH_ERROR_STATUSES.has(status);
+  }
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object";
 }
@@ -83,8 +99,10 @@ export async function sendReply(
 
     if (!fetchResponse.ok) {
       const errorBody = await fetchResponse.json().catch(() => ({}));
-      throw new Error(
-        `HTTP ${fetchResponse.status} ${fetchResponse.statusText}: ${parseErrorBody(errorBody)}`
+      throw new RelayHttpError(
+        fetchResponse.status,
+        fetchResponse.statusText,
+        parseErrorBody(errorBody)
       );
     }
 
