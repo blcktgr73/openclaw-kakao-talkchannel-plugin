@@ -11,6 +11,7 @@ export interface StreamCallbacks {
   onPairingRequired?: (pairingCode: string, expiresIn: number) => void;
   onPairingComplete?: (kakaoUserId: string) => void;
   onPairingExpired?: (reason: string) => void;
+  onTokenResolved?: (sessionToken: string, relayUrl: string) => void;
 }
 
 const DEFAULT_STREAM_OPTIONS: Required<StreamOptions> = {
@@ -93,6 +94,10 @@ export async function startRelayStream(
   logger.info(`[kakao:${talkchannel.talkchannelId}] Resolving token...`);
   const { token, relayUrl, isNewSession } = await resolveToken(talkchannel, callbacks);
   logger.info(`[kakao:${talkchannel.talkchannelId}] Token resolved (newSession=${isNewSession})`);
+
+  // Notify about resolved token
+  callbacks.onTokenResolved?.(token, relayUrl);
+
   const { reconnectDelayMs, maxReconnectDelayMs } = talkchannel.config;
 
   await connectSSE(

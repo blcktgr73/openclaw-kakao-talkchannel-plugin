@@ -21,6 +21,7 @@ import { getKakaoRuntime } from "../runtime.js";
 import { sendReply } from "../relay/client.js";
 import { stripMarkdown } from "../kakao/response.js";
 import { PLUGIN_VERSION } from "../version.js";
+import { DEFAULT_RELAY_URL } from "../config/schema.js";
 
 /**
  * 사용자별 메시지 활동 추적
@@ -231,6 +232,9 @@ export interface StartAccountResult {
 
 // Store for pairing info to be retrieved later (keyed by accountId)
 const pendingPairingInfoMap = new Map<string, { pairingCode: string; expiresIn: number }>();
+
+// Store for active session tokens (keyed by accountId)
+const activeSessionTokenMap = new Map<string, { sessionToken: string; relayUrl: string }>();
 
 export function getPendingPairingInfo(accountId?: string): { pairingCode: string; expiresIn: number } | null {
   if (accountId) {
@@ -727,8 +731,10 @@ async function handleInboundMessage(
   log?.info(`[kakao-talkchannel:${account.talkchannelId}] Received message: ${msg.id}`);
 
   // Get relay config for command handlers
-  const relayUrl = account.config.relayUrl ?? "https://kakao-relay.talelapse.in";
-  const relayToken = account.config.sessionToken ?? account.config.relayToken ?? "";
+  // Priority: activeSessionTokenMap > account.config.sessionToken > account.config.relayToken
+  const activeSession = activeSessionTokenMap.get(accountId);
+  const relayUrl = activeSession?.relayUrl ?? account.config.relayUrl ?? DEFAULT_RELAY_URL;
+  const relayToken = activeSession?.sessionToken ?? account.config.sessionToken ?? account.config.relayToken ?? "";
 
   // 플러그인 커맨드 체크
   const messageText = msg.normalized.text?.trim() ?? "";
@@ -894,6 +900,11 @@ export const gatewayAdapter = {
     );
 
     const callbacks: StreamCallbacks = {
+      onTokenResolved: (sessionToken, relayUrl) => {
+        // Store active session token keyed by accountId
+        activeSessionTokenMap.set(accountId, { sessionToken, relayUrl });
+        log?.info(`[kakao-talkchannel:${account.talkchannelId}] Session token stored for account`);
+      },
       onPairingRequired: (pairingCode, expiresIn) => {
         // Store pairing info keyed by accountId
         pendingPairingInfoMap.set(accountId, { pairingCode, expiresIn });
@@ -921,7 +932,9 @@ export const gatewayAdapter = {
     return startRelayStream(account, onMessage, abortSignal, {}, callbacks, log);
   },
 
-  stopAccount: async (_ctx: StopAccountContext): Promise<void> => {
+  stopAccount: async (ctx: StopAccountContext): Promise<void> => {
+    // Clean up active session token
+    activeSessionTokenMap.delete(ctx.accountId);
     return Promise.resolve();
   },
 

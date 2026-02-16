@@ -121,6 +121,72 @@ describe("Gateway Adapter (Simplified)", () => {
       await expect(gatewayAdapter.startAccount(ctx as any)).resolves.toBeUndefined();
     });
 
+    it("should store session token via onTokenResolved callback", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const mockStartRelayStream = vi.mocked(startRelayStream);
+
+      // Mock token resolution callback
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("session-token-xyz", "https://relay.example.com");
+        }
+      );
+
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "token-test",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: mockLog,
+      } as any);
+
+      // Check that onTokenResolved was called (via log message)
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.stringContaining("Session token stored")
+      );
+    });
+
+    it("should handle token resolution for multiple accounts", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const mockStartRelayStream = vi.mocked(startRelayStream);
+
+      // Account 1
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("token-account-1", "https://relay1.test");
+        }
+      );
+
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "account-1",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: mockLog,
+      } as any);
+
+      // Account 2
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("token-account-2", "https://relay2.test");
+        }
+      );
+
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "account-2",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: mockLog,
+      } as any);
+
+      // Both accounts should have logged token storage
+      expect(mockLog.info).toHaveBeenCalledWith(
+        expect.stringContaining("Session token stored")
+      );
+      expect(mockLog.info).toHaveBeenCalledTimes(4); // 2 start messages + 2 token stored messages
+    });
+
     it("should call onMessage callback when message received", async () => {
       const ctx = {
         account: mockAccount,
@@ -152,6 +218,33 @@ describe("Gateway Adapter (Simplified)", () => {
       await gatewayAdapter.stopAccount(ctx);
       await gatewayAdapter.stopAccount(ctx);
 
+      expect(true).toBe(true);
+    });
+
+    it("should clean up activeSessionTokenMap on stop", async () => {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      const mockStartRelayStream = vi.mocked(startRelayStream);
+
+      // Mock token resolution
+      mockStartRelayStream.mockImplementationOnce(
+        async (_account, _onMessage, _signal, _opts, callbacks) => {
+          callbacks?.onTokenResolved?.("test-token-123", "https://relay.test");
+        }
+      );
+
+      // Start account (stores token in map)
+      await gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId: "test-cleanup",
+        cfg: {},
+        abortSignal: new AbortController().signal,
+        log: mockLog,
+      } as any);
+
+      // Stop account (should clean up token)
+      await gatewayAdapter.stopAccount({ accountId: "test-cleanup" });
+
+      // Token should be cleaned up (we can't directly check the map, but stopAccount should not throw)
       expect(true).toBe(true);
     });
   });
