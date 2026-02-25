@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/compare/kakao-talkchannel-v0.5.0...kakao-talkchannel-v0.5.1) (2026-02-25)
+
+
+### Bug Fixes
+
+* configSchema DataCloneError 수정 (Zod 객체 → JSON Schema 변환) ([#40](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/issues/40)) ([774a148](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/commit/774a148b2588b07c7782545cef7b1f86ea6e0f62))
+
 ## [0.5.0](https://github.com/kakao-bart-lee/openclaw-kakao-talkchannel-plugin/compare/kakao-talkchannel-v0.4.1...kakao-talkchannel-v0.5.0) (2026-02-20)
 
 
