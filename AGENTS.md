@@ -2,6 +2,42 @@
 
 Guide for AI coding agents working in this repository.
 
+## Required Operating Model
+
+This repository should be worked on with **two instruction layers together**:
+
+1. **This `AGENTS.md`** for repository-specific coding/testing/release rules
+2. **`CLAUDE.md`** for higher-level development principles, especially:
+   - transformation-centered development
+   - small structural changes
+   - design option comparison before implementation
+   - PRD / architecture / user story / transformation traceability
+   - documentation synchronization after meaningful changes
+
+If there is any ambiguity, do **not** treat `AGENTS.md` alone as complete. Read and apply `CLAUDE.md` together.
+
+## Issue Tracking Workflow
+
+This project uses **bd (beads)** for issue tracking.
+
+Before starting meaningful work, run:
+
+```bash
+bd onboard
+```
+
+Core commands:
+
+```bash
+bd ready
+bd show <id>
+bd update <id> --status in_progress
+bd close <id>
+bd sync
+```
+
+When work maps to an existing issue, update the issue status as part of the workflow.
+
 ## Project Overview
 
 OpenClaw Kakao TalkChannel Plugin - connects KakaoTalk channels to OpenClaw platform.
@@ -203,6 +239,34 @@ beforeEach(() => {
 - Functions: 80%
 - Branches: 70%
 - Statements: 80%
+
+## Session Completion / Landing the Plane
+
+When ending a work session, the work is **not complete** until changes are committed and pushed successfully.
+
+Mandatory workflow:
+
+1. File issues for remaining work / follow-ups
+2. Run quality gates if code changed
+   - `pnpm lint`
+   - `pnpm typecheck`
+   - relevant tests
+3. Update issue status in `bd`
+4. Sync and push
+
+```bash
+git pull --rebase
+bd sync
+git push
+git status
+```
+
+`git status` must show that the branch is up to date with origin before considering the session complete.
+
+Critical rules:
+- Never leave meaningful completed work stranded only in local commits
+- Never say "ready to push when you are" for normal repository work
+- If push fails, resolve and retry until it succeeds or clearly report the blocker
 
 ## Commit Convention
 
