@@ -12,11 +12,31 @@
 카카오톡 사용자
   ↓  카카오 i 오픈빌더 webhook
 자체 Relay (your-relay.example.com → Caddy → :8080)
-  ↓  SSE event stream
+  ↓  SSE event stream (sessionToken 인증)
 OpenClaw + kakao-talkchannel 플러그인
   ↓  HTTP POST /openclaw/reply
 Relay → 카카오 → 사용자에게 응답
 ```
+
+### 인증 흐름
+
+```
+플러그인 시작
+  ↓
+sessionToken 있음? → 바로 SSE 연결
+  ↓ (없음)
+POST /v1/sessions/create → sessionToken + pairingCode 수신
+  ↓
+사용자에게 pairingCode 안내 → 카카오톡에서 /pair 입력
+  ↓
+pairing 완료 → sessionToken으로 SSE 연결
+  ↓
+sessionToken 자동 저장 (다음 재시작 시 재사용)
+```
+
+> **중요**: relay 서버의 SSE 엔드포인트(`/v1/events`)는 `sessionToken`으로만 인증합니다.
+> Admin에서 발급하는 `relayToken`은 API 계정 관리용이며, SSE 인증에는 사용되지 않습니다.
+> 플러그인 설정에 `relayToken`을 넣으면 오히려 401 에러가 발생합니다.
 
 ---
 
@@ -210,55 +230,13 @@ Caddy가 새 도메인을 인식 못하면 재시작:
 sudo docker restart <caddy-container>
 ```
 
-### 트러블슈팅 기록
+### 3-10. Admin Account 생성 (선택)
 
-배포 중 만난 이슈와 해결:
-
-| 증상 | 원인 | 해결 |
-|------|------|------|
-| `pq: SSL is not enabled on the server` | PostgreSQL에 SSL 미설정 | DATABASE_URL에 `?sslmode=disable` 추가 |
-| `relation "xxx" does not exist` | DB migration 미실행 | `docker exec -i`로 `drizzle/migrations/*.sql` 적용 (`psql -f -` 방식은 안 됨) |
-| healthcheck 405 Method Not Allowed | wget이 HEAD 요청, 서버는 GET만 지원 | 정상 동작. `curl GET`으로 확인 |
-| DB 호스트 연결 실패 | `.env`에 컨테이너명 사용 | 같은 compose 내 서비스명 사용 |
-| `.env` 변경 후 반영 안 됨 | `restart`는 환경변수 재로드 안 할 수 있음 | `--force-recreate`로 컨테이너 재생성 |
-| `ERR_SSL_PROTOCOL_ERROR` | Caddy가 새 도메인 인증서 미발급 | Caddy 컨테이너 재시작 |
-| Admin 로그인 실패 (`invalid_password`) | bcrypt 해시 불일치 또는 `$` 치환 | `nano`로 직접 편집, `printenv`로 컨테이너 내 값 확인 |
-| Admin UI 검은 화면 | API가 `items: null` 반환 시 React 크래시 | fork에서 null safety 수정 후 재빌드 배포 |
-| `Unrecognized key: "kakao-talkchannel"` | openclaw.json에서 `plugins` 키 사용 | `channels` 키로 변경 (`plugins` 아님) |
-
----
-
-## Step 4: 카카오 오픈빌더 설정
-
-### 4-1. 카카오 비즈니스 채널
-
-- https://business.kakao.com/ 에서 채널 생성 (또는 기존 채널 사용)
-- 채널 ID 메모
-
-### 4-2. 카카오 오픈빌더 (챗봇)
-
-- https://chatbot.kakao.com/ 접속 (또는 https://i.kakao.com/ → 리다이렉트)
-- 챗봇 생성 → 위 채널 연결
-
-### 4-3. 스킬 등록
-
-- 오픈빌더 > 스킬 > 스킬 생성
-- **URL**: `https://your-relay.example.com/kakao-talkchannel/webhook`
-- 시그니처 키가 나오면 `~/kakao-relay/.env`의 `KAKAO_SIGNATURE_SECRET`에 입력 후 relay 재시작
-
-### 4-4. 시나리오 연결
-
-- 폴백 블록(또는 원하는 블록)에 위 스킬 연결
-- 배포
-
----
-
-## Step 5: Relay Admin에서 Account 발급
-
+> Admin UI는 relay 서버 관리용입니다. Account/relayToken은 **API 관리용**이며,
+> 플러그인 인증(SSE)에는 사용되지 않습니다.
+>
 > Admin UI(`https://your-relay.example.com/admin/`)는 최초 account가 없으면
-> React 에러(검은 화면)가 발생합니다. CLI로 account를 생성해야 합니다.
-
-### CLI로 Account 생성
+> React 에러(검은 화면)가 발생합니다. Admin을 사용하려면 CLI로 먼저 생성하세요.
 
 ```bash
 # 1. CSRF 토큰 획득
@@ -292,21 +270,56 @@ curl -s -X POST https://your-relay.example.com/admin/api/accounts \
 rm /tmp/admin-cookie.txt
 ```
 
-응답에서 `relayToken` 값을 메모. 이후 Admin UI도 정상 접근 가능.
+### 트러블슈팅 기록
 
-### 트러블슈팅
+배포 중 만난 이슈와 해결:
 
 | 증상 | 원인 | 해결 |
 |------|------|------|
-| Admin UI 검은 화면 + `Cannot read properties of null` | account가 0개일 때 React 크래시 | CLI로 account 먼저 생성 |
-| `Missing CSRF token` | CSRF 토큰 미포함 | GET으로 쿠키 획득 후 `X-CSRF-Token` 헤더 포함 |
-| 로그인 실패 (`invalid_password`) | bcrypt 해시 불일치 | `printenv`로 컨테이너 내 값 확인, `--force-recreate`로 반영 |
+| `pq: SSL is not enabled on the server` | PostgreSQL에 SSL 미설정 | DATABASE_URL에 `?sslmode=disable` 추가 |
+| `relation "xxx" does not exist` | DB migration 미실행 | `docker exec -i`로 `drizzle/migrations/*.sql` 적용 (`psql -f -` 방식은 안 됨) |
+| healthcheck 405 Method Not Allowed | wget이 HEAD 요청, 서버는 GET만 지원 | 정상 동작. `curl GET`으로 확인 |
+| DB 호스트 연결 실패 | `.env`에 컨테이너명 사용 | 같은 compose 내 서비스명 사용 |
+| `.env` 변경 후 반영 안 됨 | `restart`는 환경변수 재로드 안 할 수 있음 | `--force-recreate`로 컨테이너 재생성 |
+| `ERR_SSL_PROTOCOL_ERROR` | Caddy가 새 도메인 인증서 미발급 | Caddy 컨테이너 재시작 |
+| Admin 로그인 실패 (`invalid_password`) | bcrypt 해시 불일치 또는 `$` 치환 | `nano`로 직접 편집, `printenv`로 컨테이너 내 값 확인 |
+| Admin UI 검은 화면 | API가 `items: null` 반환 시 React 크래시 | fork에서 null safety 수정 후 재빌드 배포 |
+| `Unrecognized key: "kakao-talkchannel"` | openclaw.json에서 `plugins` 키 사용 | `channels` 키로 변경 (`plugins` 아님) |
+| SSE 401 `invalid token attempt` | `relayToken`으로 SSE 접속 시도 | `relayToken` 제거, pairing 플로우 사용 (아래 Step 5 참고) |
 
 ---
 
-## Step 6: 플러그인 설정 (relay 연결)
+## Step 4: 카카오 오픈빌더 설정
 
-> **주의**: 설정 키는 `plugins`가 아니라 `channels`. `plugins`를 사용하면 `Unrecognized key` 에러 발생.
+### 4-1. 카카오 비즈니스 채널
+
+- https://business.kakao.com/ 에서 채널 생성 (또는 기존 채널 사용)
+- 채널 ID 메모
+
+### 4-2. 카카오 오픈빌더 (챗봇)
+
+- https://chatbot.kakao.com/ 접속 (또는 https://i.kakao.com/ → 리다이렉트)
+- 챗봇 생성 → 위 채널 연결
+
+### 4-3. 스킬 등록
+
+- 오픈빌더 > 스킬 > 스킬 생성
+- **URL**: `https://your-relay.example.com/kakao-talkchannel/webhook`
+- 시그니처 키가 나오면 `~/kakao-relay/.env`의 `KAKAO_SIGNATURE_SECRET`에 입력 후 relay 재시작
+
+### 4-4. 시나리오 연결
+
+- 폴백 블록(또는 원하는 블록)에 위 스킬 연결
+- 배포
+
+---
+
+## Step 5: 플러그인 설정 및 페어링
+
+> **주의**: 설정 키는 `plugins`가 아니라 `channels`.
+> `relayToken`은 설정하지 않습니다 (SSE 인증에 사용되지 않음).
+
+### 5-1. openclaw.json 설정
 
 `~/.openclaw/openclaw.json`:
 
@@ -318,7 +331,6 @@ rm /tmp/admin-cookie.txt
         "default": {
           "enabled": true,
           "relayUrl": "https://your-relay.example.com/",
-          "relayToken": "<Step 5에서 발급한 토큰>",
           "dmPolicy": "pairing",
           "channelId": "<카카오 채널 ID>"
         }
@@ -328,16 +340,16 @@ rm /tmp/admin-cookie.txt
 }
 ```
 
-게이트웨이 재시작:
+> `relayToken` 없이 설정하면, 플러그인이 자동으로 세션을 생성하고 pairing 플로우를 시작합니다.
+
+### 5-2. 게이트웨이 재시작
 
 ```bash
 openclaw gateway restart
 openclaw channels list   # kakao-talkchannel 확인
 ```
 
----
-
-## Step 7: 페어링 및 테스트
+### 5-3. 페어링
 
 ```bash
 openclaw tui
@@ -348,6 +360,8 @@ openclaw tui
 3. 채팅창에 `/pair ABCD-1234` 입력
 4. "연결 완료" 확인
 5. 테스트 메시지 → 응답 확인
+
+> 페어링 성공 시 `sessionToken`이 자동 저장됩니다. 이후 재시작해도 자동 연결됩니다.
 
 ---
 
@@ -389,9 +403,9 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 [ ] 9. DB migration 실행
 [ ] 10. 헬스체크 통과
 [ ] 11. 카카오 비즈니스 채널 + 오픈빌더 설정
-[ ] 12. Relay admin에서 Account + relayToken 발급
-[ ] 13. 플러그인 설정 (channels 키, relayUrl, relayToken)
-[ ] 14. 페어링 + 테스트 메시지 성공
+[ ] 12. 플러그인 설정 (channels 키, relayUrl만 — relayToken 불필요)
+[ ] 13. 페어링 (pairing code → 카카오톡에서 /pair)
+[ ] 14. 테스트 메시지 성공
 ```
 
 ---
@@ -402,8 +416,8 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 |----|------|--------|
 | `enabled` | 채널 활성화 | `true` |
 | `relayUrl` | Relay 서버 URL | `https://k.tess.dev/` |
-| `relayToken` | Relay 인증 토큰 (self-host 시 필수) | — |
-| `sessionToken` | 자동 생성 (pairing 후) | — |
+| `relayToken` | ~~SSE 인증용이 아님~~ (설정하지 않음) | — |
+| `sessionToken` | 자동 생성 (pairing 후 자동 저장) | — |
 | `dmPolicy` | `pairing` / `allowlist` / `open` / `disabled` | `pairing` |
 | `channelId` | 카카오 채널 식별자 | — |
 | `textChunkLimit` | 메시지 분할 길이 (100-1000) | `400` |
