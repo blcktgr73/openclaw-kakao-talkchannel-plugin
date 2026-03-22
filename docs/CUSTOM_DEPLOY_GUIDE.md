@@ -368,15 +368,105 @@ openclaw tui
 
 1. "카카오톡 연결해줘" → 페어링 코드 수신 (예: `ABCD-1234`)
 2. 카카오톡에서 자체 채널 친구 추가
+   - 채널이 검색에 안 나오면: 채널이 **공개** 상태인지 확인 (카카오 비즈니스 > 채널 설정)
+   - 공개 직후에는 검색에 반영되지 않을 수 있음 → 채널 URL로 직접 접근하여 추가
 3. 채팅창에 `/pair ABCD-1234` 입력
-4. "연결 완료" 확인
-5. 테스트 메시지 → 응답 확인
+4. `✅ OpenClaw에 연결되었습니다!` 확인
+5. 테스트 메시지 전송
 
 > 페어링 성공 시 `sessionToken`이 자동 저장됩니다. 이후 재시작해도 자동 연결됩니다.
+> 코드에는 만료 시간이 있습니다. tui에서 코드를 받으면 즉시 입력하세요.
 
 ---
 
-## 문제 해결
+## Step 6: 콜백 설정 (카카오 오픈빌더)
+
+> **필수**: 콜백이 없으면 relay가 카카오톡에 응답을 돌려보낼 수 없습니다.
+
+### 왜 콜백이 필요한가
+
+카카오 오픈빌더 스킬은 기본적으로 **5초 이내 즉시 응답**만 지원합니다.
+OpenClaw(AI 챗봇)의 응답 생성에는 5초 이상 걸리므로, 즉시 응답 후 **콜백 URL로 비동기 응답**을 보내야 합니다.
+
+콜백 없이 동작하는 부분:
+- 카카오 → relay → OpenClaw 메시지 전달 ✅
+- OpenClaw 처리 + 응답 생성 ✅
+
+콜백 없이 동작하지 않는 부분:
+- relay → 카카오톡 응답 전달 ❌ (`no valid callback URL for reply` 에러)
+
+### 콜백 심사 신청
+
+오픈빌더 > **설정** > 콜백 사용 신청:
+- **목적**: AI 챗봇 서비스 (OpenClaw 기반)
+- **사유 예시**: "AI 응답 생성에 5초 이상 소요되어 비동기 콜백이 필요합니다"
+
+심사 통과 후 콜백이 활성화되면 webhook에 `callbackUrl`이 포함되어 전달됩니다.
+
+### 콜백 승인 후 확인
+
+```bash
+# relay 로그에서 hasCallback=true 확인
+sudo docker logs <kakao-relay-container> -f --tail 5
+# 카카오톡에서 메시지 전송 → 로그에 hasCallback=true가 보여야 함
+```
+
+---
+
+## 디버깅 가이드
+
+### 동작 확인 흐름
+
+```
+카카오톡 메시지 전송
+  ↓
+relay 로그: "received kakao webhook" + hasCallback=true/false
+  ↓
+relay 로그: "inbound message created"
+  ↓
+SSE로 OpenClaw에 전달 (플러그인이 수신)
+  ↓
+OpenClaw 처리 후 relay로 응답: "/openclaw/reply" 200
+  ↓
+relay → 카카오 콜백 URL로 응답 전달
+```
+
+### relay 로그에서 확인할 항목
+
+```bash
+# 실시간 로그 (카카오톡에서 메시지 보내면서 확인)
+sudo docker logs <kakao-relay-container> -f --tail 5
+
+# 주요 키워드 필터
+sudo docker logs <kakao-relay-container> --tail 100 2>&1 | \
+  grep -i "webhook\|message\|callback\|reply\|error\|warn\|pair"
+```
+
+| 로그 메시지 | 의미 |
+|------------|------|
+| `received kakao webhook` | 카카오에서 메시지 도착 |
+| `hasCallback=true` | 콜백 URL 포함 (응답 전달 가능) |
+| `hasCallback=false` | 콜백 미승인 (응답 전달 불가) |
+| `inbound message created` | 메시지 DB 저장 + SSE 발행 |
+| `no valid callback URL for reply` | 콜백 없어서 응답 전달 실패 |
+| `invalid token attempt` | SSE 인증 실패 (relayToken 사용 시) |
+| `pairing_complete` | 페어링 성공 |
+
+### DB 상태 확인
+
+```bash
+# 세션 상태
+sudo docker exec <postgres-container> psql -U <db-user> -d kakao_relay \
+  -c "SELECT id, pairing_code, status, account_id FROM sessions ORDER BY created_at DESC LIMIT 5;"
+
+# 최근 메시지
+sudo docker exec <postgres-container> psql -U <db-user> -d kakao_relay \
+  -c "SELECT id, account_id, status, created_at FROM inbound_messages ORDER BY created_at DESC LIMIT 5;"
+```
+
+---
+
+## 기타 문제 해결
 
 ```bash
 # Relay 로그
@@ -403,20 +493,23 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ## 체크리스트
 
 ```
-[ ] 1. 플러그인 설치
-[ ] 2. DNS 도메인 설정
-[ ] 3. Relay 코드 클론 (~/kakao-relay)
-[ ] 4. PostgreSQL에 kakao_relay DB 생성
-[ ] 5. 시크릿 생성 + .env 작성 (sslmode=disable, 서비스명 사용)
-[ ] 6. docker-compose.prod.yml에 kakao-relay 서비스 추가
-[ ] 7. Caddyfile에 relay 도메인 추가
-[ ] 8. docker compose up -d --build
-[ ] 9. DB migration 실행
-[ ] 10. 헬스체크 통과
-[ ] 11. 카카오 비즈니스 채널 + 오픈빌더 설정
-[ ] 12. 플러그인 설정 (channels 키, relayUrl만 — relayToken 불필요)
-[ ] 13. 페어링 (pairing code → 카카오톡에서 /pair)
-[ ] 14. 테스트 메시지 성공
+[x] 1. 플러그인 설치
+[x] 2. DNS 도메인 설정
+[x] 3. Relay 코드 클론 (~/kakao-relay)
+[x] 4. PostgreSQL에 kakao_relay DB 생성
+[x] 5. 시크릿 생성 + .env 작성 (sslmode=disable, 서비스명 사용)
+[x] 6. docker-compose.prod.yml에 kakao-relay 서비스 추가
+[x] 7. Caddyfile에 relay 도메인 추가
+[x] 8. docker compose up -d --build
+[x] 9. DB migration 실행
+[x] 10. 헬스체크 통과
+[x] 11. 카카오 비즈니스 채널 + 오픈빌더 설정 (스킬 + 시나리오 폴백 블록 연결)
+[x] 12. 플러그인 설정 (channels 키, relayUrl만 — relayToken 불필요)
+[x] 13. 페어링 성공 (pairing code → 카카오톡에서 /pair)
+[x] 14. 카카오 → relay → OpenClaw 메시지 전달 확인
+[x] 15. OpenClaw → relay 응답 전달 확인
+[ ] 16. 콜백 심사 통과 (오픈빌더 > 설정 > 콜백 사용 신청)
+[ ] 17. 카카오톡 양방향 메시지 테스트 성공
 ```
 
 ---
