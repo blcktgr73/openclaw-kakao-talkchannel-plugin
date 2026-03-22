@@ -286,6 +286,7 @@ rm /tmp/admin-cookie.txt
 | Admin UI 검은 화면 | API가 `items: null` 반환 시 React 크래시 | fork에서 null safety 수정 후 재빌드 배포 |
 | `Unrecognized key: "kakao-talkchannel"` | openclaw.json에서 `plugins` 키 사용 | `channels` 키로 변경 (`plugins` 아님) |
 | SSE 401 `invalid token attempt` | `relayToken`으로 SSE 접속 시도 | `relayToken` 제거, pairing 플로우 사용 (아래 Step 5 참고) |
+| 카카오톡 "이해하기 어려워요" 응답 | 폴백 블록에 스킬이 연결 안 됨 | 폴백 블록 > 봇 응답을 "스킬 데이터"로 변경 > 스킬 선택 > 배포 |
 
 ---
 
@@ -303,14 +304,24 @@ rm /tmp/admin-cookie.txt
 
 ### 4-3. 스킬 등록
 
-- 오픈빌더 > 스킬 > 스킬 생성
+- 오픈빌더 > **스킬** 메뉴 > 스킬 생성
 - **URL**: `https://your-relay.example.com/kakao-talkchannel/webhook`
 - 시그니처 키가 나오면 `~/kakao-relay/.env`의 `KAKAO_SIGNATURE_SECRET`에 입력 후 relay 재시작
 
-### 4-4. 시나리오 연결
+### 4-4. 시나리오 연결 (중요 — 놓치기 쉬움)
 
-- 폴백 블록(또는 원하는 블록)에 위 스킬 연결
-- 배포
+> **주의**: 스킬을 등록만 해서는 동작하지 않습니다. 시나리오 블록에서 **스킬 데이터 응답**으로 연결해야 합니다.
+> 이 단계를 빠뜨리면 카카오톡에서 "이해하기 어려워요" 기본 응답만 나옵니다.
+
+1. 오픈빌더 > **시나리오** > **폴백 블록** 선택
+2. 블록 하단 **봇 응답** 영역에서:
+   - 기존 텍스트 응답이 있으면 **삭제**
+   - 응답 타입을 **"스킬 데이터"**로 선택
+   - 드롭다운에서 4-3에서 만든 스킬 선택
+3. **저장**
+4. 오픈빌더 상단 **배포** 버튼 클릭
+
+> 배포하지 않으면 변경 사항이 반영되지 않습니다. 스킬/시나리오 변경 후 반드시 배포.
 
 ---
 
