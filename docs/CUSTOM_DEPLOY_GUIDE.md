@@ -514,6 +514,20 @@ docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 
 ---
 
+## TODO
+
+콜백 승인 후 진행할 작업:
+
+| 우선순위 | 작업 | 설명 |
+|---------|------|------|
+| **P1** | 콜백 승인 후 양방향 테스트 | `hasCallback=true` 확인 → 카카오↔OpenClaw 양방향 응답 테스트 |
+| **P2** | relayToken 인증 흐름 개선 | 플러그인이 relayToken을 SSE에 직접 사용 시 401 — 세션 자동 생성 흐름 필요 |
+| **P3** | relay fork → upstream PR | Admin UI null safety fix를 upstream에 기여 |
+| **P3** | occloud Web UI wrapping | 플러그인 설정을 Web UI에서 관리할 수 있도록 정리 |
+| **P3** | auto-session-hygiene 설계 | 세션 만료/재연결 자동화 |
+
+---
+
 ## 설정 레퍼런스
 
 | 키 | 설명 | 기본값 |
