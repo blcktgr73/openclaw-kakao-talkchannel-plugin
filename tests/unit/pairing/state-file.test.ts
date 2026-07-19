@@ -8,6 +8,7 @@ import {
   clearPairingRequest,
   clearPairingState,
   consumePairingRequest,
+  describeStaleness,
   isStateStale,
   readPairingState,
   resolveStateDir,
@@ -125,6 +126,35 @@ describe("pairing state file", () => {
     it("rejects a file far older than the backstop window", () => {
       // Guards the case where a pid has been recycled onto an unrelated process.
       expect(isStateStale(base({ updatedAt: Date.now() - 20 * 60_000 }))).toBe(true);
+    });
+
+    describe("reason reporting", () => {
+      // The old code short-circuited on age and never checked the pid, while
+      // its caller's message claimed the process was dead. On the VM that sent
+      // us hunting a gateway crash that had not happened.
+      it("reports a live writer as not stale, with no reason", () => {
+        expect(describeStaleness(base())).toMatchObject({ stale: false, reason: null });
+      });
+
+      it("reports writer-gone only when the pid was actually checked and failed", () => {
+        expect(describeStaleness(base({ pid: 0 }))).toMatchObject({
+          stale: true,
+          reason: "writer-gone",
+        });
+      });
+
+      it("reports too-old when the writer is alive but the file has aged out", () => {
+        const result = describeStaleness(base({ updatedAt: Date.now() - 20 * 60_000 }));
+        expect(result).toMatchObject({ stale: true, reason: "too-old" });
+        // Crucially NOT writer-gone: this process is alive.
+        expect(result.reason).not.toBe("writer-gone");
+      });
+
+      it("always reports the observed age", () => {
+        expect(describeStaleness(base({ updatedAt: Date.now() - 5000 })).ageMs).toBeGreaterThanOrEqual(
+          5000
+        );
+      });
     });
 
     it("rejects a file whose writer is gone", () => {

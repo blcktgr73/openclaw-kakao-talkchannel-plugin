@@ -131,15 +131,38 @@ function removeQuietly(target: string): void {
   }
 }
 
+export type StalenessReason = "writer-gone" | "too-old";
+
+export interface Staleness {
+  stale: boolean;
+  /** Null when not stale. Callers must report *this*, not a guess. */
+  reason: StalenessReason | null;
+  ageMs: number;
+}
+
 /**
- * True when the file cannot be trusted to describe a live gateway.
+ * Why the file cannot be trusted to describe a live gateway, if it cannot.
  *
- * Liveness of the writing process is the primary signal; age is only a backstop
- * for the case where a pid has been recycled onto an unrelated process.
+ * This returns the reason rather than a bare boolean because the previous
+ * version did not: it short-circuited on age but its caller's message claimed
+ * the writing process was dead. On the VM that message sent us hunting a
+ * gateway crash that had never happened — the pid was alive and had simply
+ * never been checked. A diagnostic that asserts more than the code verified is
+ * worse than no diagnostic.
+ *
+ * Liveness of the writing process is the primary signal; age is a backstop for
+ * a pid recycled onto an unrelated process.
  */
+export function describeStaleness(state: PairingStateFile, now = Date.now()): Staleness {
+  const ageMs = now - state.updatedAt;
+
+  if (!isProcessAlive(state.pid)) return { stale: true, reason: "writer-gone", ageMs };
+  if (ageMs > STATE_STALE_AFTER_MS) return { stale: true, reason: "too-old", ageMs };
+  return { stale: false, reason: null, ageMs };
+}
+
 export function isStateStale(state: PairingStateFile, now = Date.now()): boolean {
-  if (!isProcessAlive(state.pid)) return true;
-  return now - state.updatedAt > STATE_STALE_AFTER_MS;
+  return describeStaleness(state, now).stale;
 }
 
 function isProcessAlive(pid: number): boolean {

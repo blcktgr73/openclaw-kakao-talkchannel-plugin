@@ -25,10 +25,11 @@
 import type { OpenClawPluginApi, OpenClawPluginCliContext } from "openclaw/plugin-sdk";
 import type { PairingSnapshot } from "./registry.js";
 import {
-  isStateStale,
+  describeStaleness,
   readPairingState,
   writePairingRequest,
   type PairingStateFile,
+  type Staleness,
 } from "./state-file.js";
 
 export const CLI_COMMAND_NAME = "kakao";
@@ -60,11 +61,23 @@ export class GatewayNotPublishingError extends Error {
   }
 }
 
-export function staleWarning(state: PairingStateFile): string {
-  const ageSeconds = Math.round((Date.now() - state.updatedAt) / 1000);
+/**
+ * Describe staleness using only what was actually checked.
+ *
+ * The previous message asserted the writing process was dead whenever the file
+ * looked stale, including when staleness had been decided on age alone and the
+ * pid never examined. That claim was false on the VM and cost an investigation.
+ */
+export function staleWarning(state: PairingStateFile, staleness: Staleness): string {
+  const ageSeconds = Math.round(staleness.ageMs / 1000);
+
+  const detail =
+    staleness.reason === "writer-gone"
+      ? `pid ${state.pid} wrote it and that process is no longer running`
+      : `pid ${state.pid} still appears to be running but has not refreshed it in ${ageSeconds}s`;
+
   return (
-    `warning: this pairing state may be out of date — last written ${ageSeconds}s ` +
-    `ago by pid ${state.pid}, which no longer appears to be running.\n` +
+    `warning: this pairing state may be out of date — ${detail}.\n` +
     "  Check: openclaw gateway status"
   );
 }
@@ -87,10 +100,10 @@ function selectAccount(
  * legitimate operation. Showing what we have, clearly flagged, is more useful to
  * an operator than refusing — especially since the detection can be wrong.
  */
-function readState(): { state: PairingStateFile; stale: boolean } {
+function readState(): { state: PairingStateFile; staleness: Staleness } {
   const state = readPairingState();
   if (!state) throw new GatewayNotPublishingError();
-  return { state, stale: isStateStale(state) };
+  return { state, staleness: describeStaleness(state) };
 }
 
 function parseTimeoutSeconds(raw: string | undefined): number {
@@ -210,14 +223,19 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
       .option("--account <id>", "Account id (defaults to the only running account)")
       .option("--json", "Emit raw JSON")
       .action(async (options: CliOptions) => {
-        const { state, stale } = readState();
+        const { state, staleness } = readState();
         const snapshot = selectAccount(state, options.account);
 
         if (options.json) {
-          writeJson({ accounts: state.accounts, account: snapshot, stale });
+          writeJson({
+            accounts: state.accounts,
+            account: snapshot,
+            stale: staleness.stale,
+            staleReason: staleness.reason,
+          });
           return;
         }
-        if (stale) ctx.logger.warn(staleWarning(state));
+        if (staleness.stale) ctx.logger.warn(staleWarning(state, staleness));
         ctx.logger.info(formatSnapshot(snapshot));
       });
 
@@ -232,8 +250,8 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
         // file is reported and the request still goes out: if the gateway is in
         // fact alive it will pick it up, and if it is not, the wait below fails
         // with a message that says so.
-        const { state, stale } = readState();
-        if (stale && !options.json) ctx.logger.warn(staleWarning(state));
+        const { state, staleness } = readState();
+        if (staleness.stale && !options.json) ctx.logger.warn(staleWarning(state, staleness));
 
         const timeoutSeconds = parseTimeoutSeconds(options.timeout);
         const request = writePairingRequest(options.account, timeoutSeconds * 1000);
