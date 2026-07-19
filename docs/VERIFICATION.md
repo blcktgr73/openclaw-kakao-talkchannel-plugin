@@ -28,26 +28,54 @@ cp ~/.openclaw/openclaw.json ~/openclaw.json.bak-$(date +%Y%m%d-%H%M)
 
 ## 1. 배포
 
-플러그인은 링크 설치입니다. 소스를 갱신하고 다시 빌드합니다.
+> **소스만 갱신하면 안 됩니다.** OpenClaw는 플러그인 메타데이터를 `plugins.json`
+> 영속 레지스트리에 캐시하며, 여기에 **`cliCommands`가 포함**됩니다. `registerCli`가
+> `commands`/`descriptors` 메타데이터를 필수로 요구하는 이유가 이것입니다 — 호스트가
+> 플러그인 코드를 로드하지 않고도 명령 목록을 알아야 하기 때문입니다.
+>
+> 이번 변경은 **새 최상위 명령 `kakao`를 추가**하므로 레지스트리 갱신이 필요합니다.
+> 갱신하지 않으면 `openclaw kakao --help`가 "unknown command"로 실패할 수 있고,
+> 그것은 코드 문제가 아니라 캐시 문제입니다.
 
 ```bash
 cd ~/kakao-plugin        # 실제 경로는 openclaw plugins list 로 확인
 git fetch origin
 git log --oneline -1     # 배포 전 커밋 기록 (롤백용)
 git pull origin main
-git log --oneline -1     # 9a6d843 이어야 함
+git log --oneline -1     # 93fc9c7 이상이어야 함
 
 npm install
-npm run build            # tsc. 실패하면 여기서 중단하고 롤백
+npm run build            # 실패하면 여기서 중단하고 §7로
 ```
 
-빌드가 실패하면 배포하지 말고 §7로 가십시오.
+링크 설치(`-l/--link`)는 파일을 복사하지 않고 경로만 참조하므로 `git pull`이 곧
+배포입니다. 하지만 레지스트리 캐시는 별개이므로 반드시 갱신하십시오.
 
 ```bash
+# 캐시된 플러그인 메타데이터(cliCommands 포함) 재생성
+openclaw plugins registry --refresh
+
+# 로드 오류 확인 — 여기서 kakao 관련 오류가 있으면 멈추십시오
+openclaw plugins doctor
+
 openclaw gateway restart
 sleep 20
 openclaw gateway status
 ```
+
+`plugins registry --refresh` 후에도 §2가 실패하면, 링크 설치 자체를 다시 등록해
+보십시오(마지막 수단):
+
+```bash
+openclaw plugins install -l ~/kakao-plugin --force
+openclaw plugins registry --refresh
+openclaw gateway restart
+```
+
+> 정직하게 적어둡니다: `plugins registry --refresh`만으로 충분한지, 아니면
+> `install -l --force`까지 필요한지는 **실기에서 확인되지 않았습니다.** 레지스트리가
+> `cliCommands`를 캐시한다는 것까지만 코드에서 확인했습니다. §2 결과를 알려주시면
+> 이 절차를 확정하겠습니다.
 
 ---
 
@@ -61,14 +89,29 @@ openclaw kakao --help
 
 **기대**: `pairing` 서브커맨드가 보입니다.
 
-**실패 시**: `registerCli`가 드롭된 것입니다. 호스트는 `commands`/`descriptors`
-메타데이터가 없으면 조용히 등록을 버립니다. 게이트웨이 로그에서 진단 메시지를
-찾으십시오.
+**실패 시** — 원인이 두 가지이고, 구분해야 합니다.
+
+*원인 A: 레지스트리 캐시가 낡음* (가능성 높음). `plugins.json`에 옛 `cliCommands`가
+남아 있는 경우입니다.
 
 ```bash
+openclaw plugins inspect kakao-talkchannel --json | jq '.cliCommands // "none"'
+```
+
+`kakao`가 없으면 §1의 `plugins registry --refresh`를 다시 실행하고, 그래도 안 되면
+`install -l --force`까지 가십시오.
+
+*원인 B: 등록 자체가 드롭됨*. 호스트는 `commands`/`descriptors` 메타데이터가 없거나
+명령 경로가 충돌하면 등록을 버립니다.
+
+```bash
+openclaw plugins doctor
 journalctl --user -u openclaw-gateway --since "2 min ago" --no-pager \
   | grep -iE "cli registration|kakao|plugin"
 ```
+
+`cli registration missing explicit commands metadata` 또는 경로 충돌 메시지가 보이면
+플러그인 코드 문제이니 알려주십시오.
 
 > 이 검증이 통과하면 **`registerCli`가 실제로 동작한다는 것이 처음으로 실증**됩니다.
 > 지금까지는 SDK 타입 선언과 번들 확장의 사용례만 근거였습니다.
