@@ -37,6 +37,7 @@ import {
   unregisterAccount,
   type PairingSnapshot,
 } from "../pairing/registry.js";
+import { startPairingPublisher } from "../pairing/publisher.js";
 
 /**
  * 사용자별 메시지 활동 추적
@@ -973,6 +974,9 @@ export const gatewayAdapter = {
     };
 
     registerAccount(accountId, talkchannelId, controller);
+    // The CLI runs in a different process and cannot call into the gateway, so
+    // pairing state is published to disk and re-issue requests are polled.
+    const stopPublisher = startPairingPublisher(log);
 
     // Tracked so pairing completion can persist the token that is actually in
     // use; the pairing_complete event itself does not carry it.
@@ -1090,6 +1094,7 @@ export const gatewayAdapter = {
     } finally {
       running = false;
       unregisterAccount(accountId);
+      stopPublisher();
     }
   },
 

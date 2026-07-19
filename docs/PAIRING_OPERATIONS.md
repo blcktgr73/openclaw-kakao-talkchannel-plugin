@@ -3,8 +3,32 @@
 카카오톡 채널 페어링 코드를 **SSH + `openclaw` CLI**로 얻는 방법입니다.
 
 > **전제: 게이트웨이가 먼저 떠 있어야 합니다.** 페어링 코드는 게이트웨이 프로세스의
-> 메모리에만 존재합니다. CLI는 별도 프로세스라서 게이트웨이 RPC로 읽어옵니다.
+> 메모리에 존재하며, 게이트웨이가 이를 파일로 발행할 때만 CLI가 읽을 수 있습니다.
 > 게이트웨이가 내려가 있으면 CLI가 그렇게 알려줍니다.
+
+## CLI가 게이트웨이와 통신하는 방식
+
+플러그인 CLI 명령은 **실행 중인 게이트웨이를 직접 호출할 수 없습니다.** 2026-07-20에
+실기에서 확인했습니다:
+
+- `runtime.gateway.isAvailable()`은 "이 프로세스가 활성 Gateway request context를
+  소유하는가"를 뜻합니다 — 게이트웨이 *안에서* 도는 플러그인 코드에만 참이고,
+  CLI에서는 항상 거짓입니다.
+- 호스트 자신의 `channels status`가 쓰는 `callGateway`는 `openclaw/plugin-sdk`에서
+  export되지 않습니다.
+
+그래서 두 프로세스는 파일로 주고받습니다. 각 파일은 **쓰는 쪽이 하나뿐**입니다.
+
+| 파일 | 쓰는 쪽 | 읽는 쪽 |
+|---|---|---|
+| `~/.openclaw/kakao-talkchannel/pairing-state.json` | 게이트웨이 | CLI |
+| `~/.openclaw/kakao-talkchannel/pairing-request.json` | CLI | 게이트웨이 (1초 폴링) |
+
+두 파일 모두 원자적 쓰기 + `0600`입니다. 상태 파일에는 쓴 프로세스의 pid가 들어가서,
+CLI가 죽은 게이트웨이가 남긴 파일을 신뢰하지 않고 stale로 판정합니다.
+
+게이트웨이 RPC 메서드도 **여전히 존재하고 동작합니다** — 플러그인 CLI에서만 못 닿을
+뿐입니다.
 
 ## 명령어
 
@@ -103,7 +127,8 @@ openclaw channels status --channel kakao-talkchannel --json \
 
 ## 게이트웨이 RPC 직접 호출
 
-CLI는 아래 메서드의 얇은 래퍼입니다. 스크립트에서 직접 부를 수도 있습니다.
+CLI와는 별개의 경로입니다. 호스트의 `openclaw gateway call`은 게이트웨이에 직접
+닿으므로, CLI가 어떤 이유로 막히면 대체 수단이 됩니다. 2026-07-20 실기 확인 완료.
 
 ```bash
 openclaw gateway call kakao.pairing.status
@@ -117,12 +142,28 @@ openclaw gateway call kakao.pairing.new --params '{"timeoutMs":45000}'
 
 ## 문제 해결
 
-**`The OpenClaw gateway is not reachable`**
-게이트웨이가 떠 있어야 합니다. `openclaw gateway start` 후 재시도.
+**`No KakaoTalk pairing state found`**
+게이트웨이가 상태를 발행하고 있지 않습니다 — 게이트웨이가 내려가 있거나, 카카오
+채널 계정이 시작되지 않았습니다.
 
-**`No KakaoTalk account is running`**
-게이트웨이는 떠 있지만 카카오 채널이 시작되지 않았습니다.
-`openclaw channels status --channel kakao-talkchannel`로 `enabled`/`configured`를 확인하십시오.
+```bash
+openclaw gateway status
+openclaw channels status --channel kakao-talkchannel
+```
+
+**`KakaoTalk pairing state is stale`**
+상태 파일은 있지만 그것을 쓴 프로세스가 이미 죽었습니다. 게이트웨이가 비정상 종료한
+경우입니다. `openclaw gateway restart` 후 재시도하십시오.
+
+**`Timed out … waiting for a new pairing code`**
+게이트웨이가 요청 파일을 집어가지 못했거나, 릴레이가 응답하지 않았습니다.
+
+```bash
+journalctl --user -u openclaw-gateway --since "2 min ago" | grep -i kakao
+```
+
+로그에 `Re-issue requested via CLI`가 없으면 게이트웨이가 요청을 못 본 것이고,
+`CLI re-issue failed`가 있으면 그 사유가 실제 원인입니다.
 
 **`This account uses a configured relayToken, so it never pairs`**
 `relayToken`이 설정되어 있으면 `createSession`이 호출되지 않아 페어링 코드 자체가
@@ -138,7 +179,12 @@ openclaw gateway call kakao.pairing.new --params '{"timeoutMs":45000}'
 
 ## 알려진 제약
 
-- 페어링 상태는 **게이트웨이 프로세스 메모리**에 있습니다. 게이트웨이를 재시작하면
-  저장된 세션 토큰으로 페어링은 복원되지만, 대기 중이던 미완료 코드는 사라집니다.
-  그때는 `openclaw kakao pairing new`를 다시 실행하면 됩니다.
+- 페어링 상태는 **게이트웨이 프로세스 메모리**에 있고 파일은 그 사본입니다.
+  게이트웨이를 재시작하면 저장된 세션 토큰으로 페어링은 복원되지만, 대기 중이던
+  미완료 코드는 사라집니다. 그때는 `openclaw kakao pairing new`를 다시 실행하십시오.
+- 게이트웨이는 재기동 시 남아 있던 요청 파일을 **버립니다.** 죽어 있는 동안 쌓인
+  요청이 나중에 엉뚱한 시점에 코드를 발급하는 것을 막기 위함입니다.
+- `pairing new`는 게이트웨이의 1초 폴링 주기만큼 지연될 수 있습니다.
 - 릴레이가 발급하는 코드의 유효시간은 릴레이가 정합니다(관측치 5분).
+- 상태 파일은 `0600`이지만 **평문**입니다. 게이트웨이를 돌리는 계정에 접근할 수 있는
+  사람은 대기 중인 페어링 코드를 볼 수 있습니다.

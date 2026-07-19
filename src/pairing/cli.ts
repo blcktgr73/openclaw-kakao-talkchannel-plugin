@@ -7,28 +7,40 @@
  * that had to stay up, and stepping around a double-restart that issued two
  * codes ~45s apart.
  *
- * The CLI runs in a different process from the gateway, so every command here
- * is a thin front end over the `kakao.pairing.*` gateway RPC methods.
+ * ## Why this talks to files, not to the gateway
+ *
+ * The obvious design — have the CLI call a gateway RPC method — does not work.
+ * `runtime.gateway.isAvailable()` reports "whether this process owns an active
+ * Gateway request context", which is true only for plugin code already running
+ * *inside* the gateway; from the CLI it is always false. The host's own
+ * `callGateway` helper is not exported from `openclaw/plugin-sdk`. Verified on
+ * a live gateway 2026-07-20.
+ *
+ * So the gateway publishes pairing state to `pairing-state.json` and consumes
+ * re-issue requests from `pairing-request.json`. The RPC methods still exist and
+ * work (`openclaw gateway call kakao.pairing.status`) — they are just not
+ * reachable from a plugin's own CLI command.
  */
 
-import type {
-  OpenClawPluginApi,
-  OpenClawPluginCliContext,
-  PluginRuntime,
-} from "openclaw/plugin-sdk";
-import {
-  DEFAULT_REISSUE_TIMEOUT_MS,
-  PAIRING_NEW_METHOD,
-  PAIRING_STATUS_METHOD,
-  type PairingNewResult,
-  type PairingStatusResult,
-} from "./gateway-methods.js";
+import type { OpenClawPluginApi, OpenClawPluginCliContext } from "openclaw/plugin-sdk";
 import type { PairingSnapshot } from "./registry.js";
+import {
+  isStateStale,
+  readPairingState,
+  writePairingRequest,
+  type PairingStateFile,
+} from "./state-file.js";
 
 export const CLI_COMMAND_NAME = "kakao";
 
-/** Gateway RPC needs a little headroom over the re-issue wait itself. */
-const RPC_TIMEOUT_MARGIN_MS = 15_000;
+export const DEFAULT_REISSUE_TIMEOUT_SECONDS = 30;
+/** How often the CLI re-reads the state file while waiting for a new code. */
+export const POLL_INTERVAL_MS = 500;
+/**
+ * Extra wait on top of `--timeout`, covering the gateway's own request poll
+ * interval. The relay round trip is already what `--timeout` budgets for.
+ */
+export const REISSUE_POLL_GRACE_MS = 2000;
 
 interface CliOptions {
   account?: string;
@@ -36,28 +48,55 @@ interface CliOptions {
   timeout?: string;
 }
 
-export class GatewayUnavailableError extends Error {
+export class GatewayNotPublishingError extends Error {
   constructor() {
     super(
-      "The OpenClaw gateway is not reachable. KakaoTalk pairing is only available " +
-        "while the gateway is running — start it with `openclaw gateway start`, " +
-        "then retry."
+      "No KakaoTalk pairing state found. The gateway publishes it only while a " +
+        "KakaoTalk account is running.\n" +
+        "  Check:  openclaw gateway status\n" +
+        "          openclaw channels status --channel kakao-talkchannel"
     );
-    this.name = "GatewayUnavailableError";
+    this.name = "GatewayNotPublishingError";
   }
 }
 
-async function ensureGateway(runtime: PluginRuntime): Promise<void> {
-  if (!(await runtime.gateway.isAvailable())) throw new GatewayUnavailableError();
+export class StaleStateError extends Error {
+  constructor(state: PairingStateFile) {
+    const ageSeconds = Math.round((Date.now() - state.updatedAt) / 1000);
+    super(
+      `KakaoTalk pairing state is stale (last written ${ageSeconds}s ago by pid ` +
+        `${state.pid}, which is no longer running). The gateway is probably down.\n` +
+        "  Check: openclaw gateway status"
+    );
+    this.name = "StaleStateError";
+  }
 }
 
-function parseTimeoutMs(raw: string | undefined): number {
-  if (!raw) return DEFAULT_REISSUE_TIMEOUT_MS;
+function selectAccount(
+  state: PairingStateFile,
+  accountId: string | undefined
+): PairingSnapshot | null {
+  if (accountId) {
+    return state.accounts.find((account) => account.accountId === accountId) ?? null;
+  }
+  return state.accounts[0] ?? null;
+}
+
+/** Read published state, rejecting anything a dead gateway left behind. */
+function readLiveState(): PairingStateFile {
+  const state = readPairingState();
+  if (!state) throw new GatewayNotPublishingError();
+  if (isStateStale(state)) throw new StaleStateError(state);
+  return state;
+}
+
+function parseTimeoutSeconds(raw: string | undefined): number {
+  if (!raw) return DEFAULT_REISSUE_TIMEOUT_SECONDS;
   const seconds = Number(raw);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     throw new Error(`--timeout must be a positive number of seconds (got "${raw}")`);
   }
-  return Math.round(seconds * 1000);
+  return seconds;
 }
 
 export function formatSnapshot(snapshot: PairingSnapshot | null): string {
@@ -75,13 +114,12 @@ export function formatSnapshot(snapshot: PairingSnapshot | null): string {
 
   switch (snapshot.state) {
     case "pending": {
-      const minutes = Math.floor((snapshot.expiresInSeconds ?? 0) / 60);
-      const seconds = (snapshot.expiresInSeconds ?? 0) % 60;
+      const remaining = snapshot.expiresInSeconds ?? 0;
       lines.push(
         "",
         `  페어링 코드: ${snapshot.pairingCode}`,
         `  카카오톡에서 입력: /pair ${snapshot.pairingCode}`,
-        `  남은 시간: ${minutes}분 ${seconds}초`
+        `  남은 시간: ${Math.floor(remaining / 60)}분 ${remaining % 60}초`
       );
       break;
     }
@@ -106,9 +144,45 @@ export function formatSnapshot(snapshot: PairingSnapshot | null): string {
   return lines.join("\n");
 }
 
-export function registerPairingCli(api: OpenClawPluginApi): void {
-  const runtime = api.runtime;
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Wait for the gateway to publish a code issued after `requestedAt`.
+ *
+ * Comparing against `issuedAt` is what distinguishes a genuinely new code from
+ * the one that was already sitting there.
+ */
+async function awaitNewCode(
+  accountId: string | undefined,
+  requestedAt: number,
+  timeoutMs: number
+): Promise<PairingSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+
+    const state = readPairingState();
+    const snapshot = state ? selectAccount(state, accountId) : null;
+    if (
+      snapshot &&
+      snapshot.state === "pending" &&
+      snapshot.issuedAt !== null &&
+      snapshot.issuedAt >= requestedAt
+    ) {
+      return snapshot;
+    }
+  }
+
+  throw new Error(
+    `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for a new pairing code.\n` +
+      "  The gateway may not have picked up the request. Check:\n" +
+      "    openclaw channels status --channel kakao-talkchannel\n" +
+      "    journalctl --user -u openclaw-gateway --since '2 min ago' | grep -i kakao"
+  );
+}
+
+export function registerPairingCli(api: OpenClawPluginApi): void {
   const registrar = (ctx: OpenClawPluginCliContext): void => {
     const kakao = ctx.program
       .command(CLI_COMMAND_NAME)
@@ -122,17 +196,16 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
       .option("--account <id>", "Account id (defaults to the only running account)")
       .option("--json", "Emit raw JSON")
       .action(async (options: CliOptions) => {
-        await ensureGateway(runtime);
-        const result = await runtime.gateway.request<PairingStatusResult>(
-          PAIRING_STATUS_METHOD,
-          { accountId: options.account }
-        );
+        const state = readLiveState();
+        const snapshot = selectAccount(state, options.account);
 
         if (options.json) {
-          ctx.logger.info(JSON.stringify(result, null, 2));
+          ctx.logger.info(
+            JSON.stringify({ accounts: state.accounts, account: snapshot }, null, 2)
+          );
           return;
         }
-        ctx.logger.info(formatSnapshot(result.account));
+        ctx.logger.info(formatSnapshot(snapshot));
       });
 
     pairing
@@ -142,20 +215,23 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
       .option("--json", "Emit raw JSON")
       .option("--timeout <seconds>", "How long to wait for the relay", "30")
       .action(async (options: CliOptions) => {
-        await ensureGateway(runtime);
-        const timeoutMs = parseTimeoutMs(options.timeout);
+        // Fail fast with a clear reason if nothing is publishing.
+        readLiveState();
 
-        const result = await runtime.gateway.request<PairingNewResult>(
-          PAIRING_NEW_METHOD,
-          { accountId: options.account, timeoutMs },
-          { timeoutMs: timeoutMs + RPC_TIMEOUT_MARGIN_MS }
+        const timeoutSeconds = parseTimeoutSeconds(options.timeout);
+        const request = writePairingRequest(options.account, timeoutSeconds * 1000);
+
+        const snapshot = await awaitNewCode(
+          options.account,
+          request.requestedAt,
+          timeoutSeconds * 1000 + REISSUE_POLL_GRACE_MS
         );
 
         if (options.json) {
-          ctx.logger.info(JSON.stringify(result, null, 2));
+          ctx.logger.info(JSON.stringify({ account: snapshot }, null, 2));
           return;
         }
-        ctx.logger.info(formatSnapshot(result.account));
+        ctx.logger.info(formatSnapshot(snapshot));
       });
   };
 

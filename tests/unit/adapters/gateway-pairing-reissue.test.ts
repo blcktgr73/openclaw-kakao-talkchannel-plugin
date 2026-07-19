@@ -8,7 +8,10 @@
  * double-restart that issued two codes ~45s apart.
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 import type { StreamCallbacks } from "../../../src/relay/stream";
 import { gatewayAdapter } from "../../../src/adapters/gateway";
@@ -94,10 +97,23 @@ async function startAccount(account: ResolvedKakaoTalkChannel) {
 }
 
 describe("pairing re-issue without a gateway restart", () => {
+  let tmpHome: string;
+
   beforeEach(() => {
+    // startAccount starts the state publisher, which writes real files.
+    // Without this the suite would scribble into the developer's own
+    // ~/.openclaw directory.
+    tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "kakao-reissue-"));
+    vi.stubEnv("OPENCLAW_HOME", tmpHome);
+
     __resetPairingRegistry();
     forgetSessionToken.mockClear();
     mockLog.info.mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    fs.rmSync(tmpHome, { recursive: true, force: true });
   });
 
   it("issues a new code and reports it, all while the gateway keeps running", async () => {

@@ -1,9 +1,26 @@
 # 배포 검증 절차
 
 2026-07-20 페어링 CLI 변경분을 실제 VM에서 검증하는 절차입니다.
-**단위 테스트 659건은 통과했지만, 실행 중인 게이트웨이에 붙여본 적은 없습니다.**
 
 소요 시간 약 20분. 카카오톡 앱이 필요합니다(페어링 코드 입력).
+
+## 1차 검증에서 이미 확인된 것 (2026-07-20)
+
+| 항목 | 결과 |
+|---|---|
+| `openclaw plugins registry --refresh` / `doctor` | 통과, 이슈 없음 |
+| `openclaw kakao --help`에 `pairing` 노출 | **통과** — `registerCli` 실증 |
+| `openclaw gateway call kakao.pairing.status` | **통과** — RPC 등록·`operator.read` 스코프 실증 |
+| 페어링 레지스트리 동작 | `state: paired`, `canReissue: true` 정상 |
+| `openclaw kakao pairing status` | **실패** — 아래 참조 |
+
+**발견된 설계 결함**: CLI가 `runtime.gateway`로 게이트웨이를 호출하려 했으나, 그 API는
+게이트웨이 프로세스 *내부* 코드 전용입니다(`"Whether this process owns an active
+Gateway request context"`). CLI에서는 항상 거짓이라 "게이트웨이가 안 떠 있다"는
+잘못된 안내가 나왔습니다.
+
+**수정**: 게이트웨이가 상태를 파일로 발행하고 CLI가 읽는 방식으로 전환했습니다.
+자세한 내용은 `docs/PAIRING_OPERATIONS.md`. 아래 절차로 재검증이 필요합니다.
 
 ---
 
@@ -148,6 +165,17 @@ JSON도 확인:
 
 ```bash
 openclaw kakao pairing status --json | jq .
+```
+
+상태 파일이 실제로 발행되는지도 봐 두십시오 — 이번 설계의 토대입니다.
+
+```bash
+ls -la ~/.openclaw/kakao-talkchannel/
+# pairing-state.json 이 있고 권한이 -rw------- 이어야 합니다
+jq '{pid, updatedAt, accounts: (.accounts|length)}' \
+  ~/.openclaw/kakao-talkchannel/pairing-state.json
+# pid 가 현재 게이트웨이 pid 와 같아야 합니다
+systemctl --user show -p MainPID --value openclaw-gateway
 ```
 
 ---
@@ -332,8 +360,9 @@ curl -s -o /dev/null -w "%{http_code} //health\n" "${RELAY}/health"
 ## 결과 보고 양식
 
 ```
-[ ] 2. openclaw kakao --help 에 pairing 노출
+[x] 2. openclaw kakao --help 에 pairing 노출          (2026-07-20 확인)
 [ ] 3. status 3회 연속 동일 출력 (비파괴)
+[ ] 3. pairing-state.json 발행, 권한 0600, pid 일치
 [ ] 4. pairing new 후 PID 동일 (재시작 없음)   ← 핵심
 [ ] 5. /pair 성공, "페어링 완료" 로그 정확히 1회
 [ ] 5. 카카오톡 대화 왕복 정상

@@ -63,6 +63,28 @@ interface AccountEntry {
 const accounts = new Map<string, AccountEntry>();
 
 /**
+ * Change listeners. The gateway process uses these to publish state to disk so
+ * the CLI — which cannot call into the gateway — can read it.
+ */
+type ChangeListener = () => void;
+const changeListeners = new Set<ChangeListener>();
+
+export function onPairingChange(listener: ChangeListener): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
+
+function notifyChange(): void {
+  for (const listener of changeListeners) {
+    try {
+      listener();
+    } catch {
+      // A failing publisher must never break the pairing flow.
+    }
+  }
+}
+
+/**
  * Window within which repeated `pairing_complete` events for the same user are
  * treated as duplicates. The relay emits ~4 in 2s.
  */
@@ -130,6 +152,7 @@ export function registerAccount(
 ): void {
   const entry = entryFor(accountId, talkchannelId);
   entry.controller = controller;
+  notifyChange();
 }
 
 export function unregisterAccount(accountId: string): void {
@@ -139,6 +162,7 @@ export function unregisterAccount(accountId: string): void {
   const snapshot = toSnapshot(entry);
   for (const resolve of entry.waiters.splice(0)) resolve(snapshot);
   accounts.delete(accountId);
+  notifyChange();
 }
 
 export function recordPairingRequired(
@@ -158,6 +182,7 @@ export function recordPairingRequired(
   entry.pairedAt = null;
 
   const snapshot = toSnapshot(entry, now);
+  notifyChange();
   for (const resolve of entry.waiters.splice(0)) resolve(snapshot);
   return snapshot;
 }
@@ -190,6 +215,7 @@ export function recordPairingComplete(
   entry.expiresAt = null;
   entry.pairedUserId = kakaoUserId;
   entry.pairedAt = now;
+  notifyChange();
   return true;
 }
 
@@ -198,6 +224,7 @@ export function recordPairingExpired(accountId: string, talkchannelId: string): 
   entry.state = "expired";
   entry.pairingCode = null;
   entry.expiresAt = null;
+  notifyChange();
 }
 
 /** Mark an account as already paired because a saved session token was reused. */
@@ -207,6 +234,7 @@ export function recordSessionReused(accountId: string, talkchannelId: string): v
   entry.state = "paired";
   entry.pairingCode = null;
   entry.expiresAt = null;
+  notifyChange();
 }
 
 /** Forget any paired state — the relay rejected the token. */
@@ -217,6 +245,7 @@ export function recordSessionInvalidated(accountId: string, talkchannelId: strin
   entry.expiresAt = null;
   entry.pairedUserId = null;
   entry.pairedAt = null;
+  notifyChange();
 }
 
 // -- reads (called from the gateway RPC / CLI) ------------------------------
@@ -282,4 +311,5 @@ export async function requestNewPairing(
 /** Test seam. */
 export function __resetPairingRegistry(): void {
   accounts.clear();
+  changeListeners.clear();
 }
