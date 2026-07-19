@@ -45,5 +45,90 @@ declare module "openclaw/plugin-sdk" {
         }) => Promise<unknown>;
       };
     };
+    /**
+     * RPC into the running gateway process. The CLI runs in a *different*
+     * process from the gateway, so this is the only way a CLI command can read
+     * live in-memory plugin state.
+     *
+     * Mirrors `PluginRuntime.gateway` in
+     * node_modules/openclaw/dist/types-DaHgOqFX.d.ts.
+     */
+    gateway: {
+      isAvailable: () => boolean | Promise<boolean>;
+      request: <T = unknown>(
+        method: string,
+        params?: unknown,
+        options?: { timeoutMs?: number }
+      ) => Promise<T>;
+    };
+  }
+
+  /** Operator scopes accepted by `registerGatewayMethod`. */
+  export type OperatorScope = "operator.read" | "operator.write" | "operator.admin";
+
+  export interface GatewayRequestContext {
+    params?: unknown;
+  }
+
+  export type GatewayRequestHandler = (
+    ctx: GatewayRequestContext
+  ) => unknown | Promise<unknown>;
+
+  /**
+   * Minimal shape of the commander `Command` object handed to a CLI registrar.
+   * The real type comes from commander; only what the plugin uses is declared.
+   */
+  export interface CliCommand {
+    command: (nameAndArgs: string) => CliCommand;
+    description: (text: string) => CliCommand;
+    option: (flags: string, description?: string, defaultValue?: unknown) => CliCommand;
+    argument: (name: string, description?: string) => CliCommand;
+    action: (handler: (...args: never[]) => unknown | Promise<unknown>) => CliCommand;
+  }
+
+  export interface OpenClawPluginCliContext {
+    program: CliCommand;
+    parentPath: readonly string[];
+    config: unknown;
+    workspaceDir?: string;
+    logger: PluginRuntime["logger"];
+  }
+
+  export type OpenClawPluginCliRegistrar = (
+    ctx: OpenClawPluginCliContext
+  ) => void | Promise<void>;
+
+  export interface OpenClawPluginCliCommandDescriptor {
+    name: string;
+    description: string;
+    hasSubcommands: boolean;
+  }
+
+  /**
+   * The subset of `OpenClawPluginApi` this plugin uses.
+   *
+   * The real type has ~50 registration methods; see
+   * node_modules/openclaw/dist/types-DaHgOqFX.d.ts:12067. Registering a CLI
+   * command *requires* explicit `commands` or `descriptors` metadata —
+   * registration is dropped with a diagnostic otherwise.
+   */
+  export interface OpenClawPluginApi {
+    runtime: PluginRuntime;
+    config: unknown;
+    logger: PluginRuntime["logger"];
+    registerChannel: (opts: { plugin: unknown }) => void;
+    registerGatewayMethod: (
+      method: string,
+      handler: GatewayRequestHandler,
+      opts?: { scope?: OperatorScope }
+    ) => void;
+    registerCli: (
+      registrar: OpenClawPluginCliRegistrar,
+      opts?: {
+        parentPath?: string[];
+        commands?: string[];
+        descriptors?: OpenClawPluginCliCommandDescriptor[];
+      }
+    ) => void;
   }
 }

@@ -9,6 +9,12 @@
 
 import { DEFAULT_RELAY_URL } from "../config/schema.js";
 
+/**
+ * Both calls used to run with no timeout at all, so an unresponsive relay
+ * would hang pairing indefinitely. Matches the relay client's 10s budget.
+ */
+const DEFAULT_TIMEOUT_MS = 10000;
+
 export type SessionStatus = "pending_pairing" | "paired" | "expired" | "disconnected";
 
 export interface CreateSessionResponse {
@@ -55,6 +61,7 @@ export async function createSession(
         "Content-Type": "application/json",
       },
       body: JSON.stringify({}),
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -95,11 +102,12 @@ export async function checkSessionStatus(
   const url = normalizeRelayUrl(relayUrl);
 
   try {
-    const response = await fetch(`${url}v1/sessions/${sessionToken}/status`, {
+    const response = await fetch(`${url}v1/sessions/${encodeURIComponent(sessionToken)}/status`, {
       method: "GET",
       headers: {
         "Accept": "application/json",
       },
+      signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
     });
 
     if (!response.ok) {
@@ -129,7 +137,7 @@ export async function checkSessionStatus(
 /**
  * Normalize relay URL to ensure it ends with a slash
  */
-function normalizeRelayUrl(url: string): string {
+export function normalizeRelayUrl(url: string): string {
   return url.endsWith("/") ? url : `${url}/`;
 }
 

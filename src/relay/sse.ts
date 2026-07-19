@@ -21,9 +21,10 @@ export function calculateReconnectDelay(
   maxDelayMs: number
 ): number {
   const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
-  const cappedDelay = Math.min(exponentialDelay, maxDelayMs);
-  const jitter = cappedDelay * 0.2 * Math.random();
-  return Math.floor(cappedDelay + jitter);
+  const jitter = Math.min(exponentialDelay, maxDelayMs) * 0.2 * Math.random();
+  // Cap *after* adding jitter. Capping first and then adding let the result
+  // exceed maxDelayMs by up to 20% (30000 -> as much as 35999).
+  return Math.floor(Math.min(exponentialDelay + jitter, maxDelayMs));
 }
 
 export function parseSSEChunk(chunk: string): { events: SSEEvent[]; consumed: number; parseErrors: number } {

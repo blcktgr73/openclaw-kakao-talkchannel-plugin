@@ -25,6 +25,18 @@ import { stripMarkdown } from "../kakao/response.js";
 import { PLUGIN_VERSION } from "../version.js";
 import { DEFAULT_RELAY_URL } from "../config/schema.js";
 import { handleCardCommand } from "../commands/card.js";
+import {
+  awaitPairingCode,
+  getPairingSnapshot,
+  recordPairingComplete,
+  recordPairingExpired,
+  recordPairingRequired,
+  recordSessionInvalidated,
+  recordSessionReused,
+  registerAccount,
+  unregisterAccount,
+  type PairingSnapshot,
+} from "../pairing/registry.js";
 
 /**
  * 사용자별 메시지 활동 추적
@@ -230,14 +242,6 @@ export interface StopAccountContext {
   accountId: string;
 }
 
-export interface StartAccountResult {
-  pairingCode?: string;
-  expiresIn?: number;
-}
-
-// Store for pairing info to be retrieved later (keyed by accountId)
-const pendingPairingInfoMap = new Map<string, { pairingCode: string; expiresIn: number }>();
-
 // Store for active session tokens (keyed by accountId)
 const activeSessionTokenMap = new Map<string, { sessionToken: string; relayUrl: string }>();
 
@@ -252,17 +256,23 @@ function invalidateSessionToken(
   }
 }
 
-export function getPendingPairingInfo(accountId?: string): { pairingCode: string; expiresIn: number } | null {
-  if (accountId) {
-    const info = pendingPairingInfoMap.get(accountId) ?? null;
-    pendingPairingInfoMap.delete(accountId);
-    return info;
-  }
-  // Fallback: return first entry (backwards compat for single-account)
-  const first = pendingPairingInfoMap.entries().next();
-  if (first.done) return null;
-  pendingPairingInfoMap.delete(first.value[0]);
-  return first.value[1];
+/**
+ * @deprecated Use `getPairingSnapshot` from `src/pairing/registry.js`, or the
+ * `kakao.pairing.status` gateway method / `openclaw kakao pairing status` CLI.
+ *
+ * Kept for backwards compatibility. Unlike the original, this is now a
+ * **non-destructive** read — repeated calls return the same code until the
+ * pairing completes or expires.
+ */
+export function getPendingPairingInfo(
+  accountId?: string
+): { pairingCode: string; expiresIn: number } | null {
+  const snapshot = getPairingSnapshot(accountId);
+  if (!snapshot || snapshot.state !== "pending" || snapshot.pairingCode === null) return null;
+  return {
+    pairingCode: snapshot.pairingCode,
+    expiresIn: snapshot.expiresInSeconds ?? 0,
+  };
 }
 
 /**
@@ -911,19 +921,58 @@ async function handleInboundMessage(
   });
 }
 
+/** Default wait for the relay to issue a code after a forced re-issue. */
+export const PAIRING_REISSUE_TIMEOUT_MS = 30_000;
+
+/**
+ * A static `relayToken` (config or env) means `resolveToken` never calls
+ * `createSession`, so there is no pairing code to issue at all.
+ */
+function staticTokenReason(account: ResolvedKakaoTalkChannel): string | null {
+  if (account.config.relayToken) {
+    return "This account uses a configured relayToken, so it never pairs. Remove channels.kakao-talkchannel.accounts.<id>.relayToken to use pairing.";
+  }
+  if (process.env.OPENCLAW_TALKCHANNEL_RELAY_TOKEN) {
+    return "OPENCLAW_TALKCHANNEL_RELAY_TOKEN is set, so this account never pairs. Unset it to use pairing.";
+  }
+  return null;
+}
+
 export const gatewayAdapter = {
   startAccount: async (ctx: GatewayContext): Promise<void> => {
     const { account, accountId, cfg, abortSignal, log } = ctx;
+    const { talkchannelId } = account;
 
-    log?.info(
-      `[kakao-talkchannel:${account.talkchannelId}] Starting SSE stream to ${account.config.relayUrl}`
-    );
+    // Supervisor state. A forced re-issue aborts the inner stream and loops,
+    // which is what lets an operator get a new code without restarting the
+    // whole gateway (and without hitting the double-restart trap).
+    let innerAbort: AbortController | null = null;
+    let reissueRequested = false;
+    let running = true;
 
-    if (account.config.sessionToken) {
-      log?.info(
-        `[kakao-talkchannel:${account.talkchannelId}] Reusing the saved pairing; no new code needed`
-      );
-    }
+    const controller = {
+      reissueBlockedReason: (): string | null =>
+        running ? staticTokenReason(account) : "account is not running",
+
+      requestNewPairing: async (timeoutMs: number): Promise<PairingSnapshot> => {
+        log?.info(`[kakao-talkchannel:${talkchannelId}] Re-issuing pairing code on request`);
+
+        // Drop every copy of the current token, otherwise resolveToken reuses
+        // it and no new code is ever issued.
+        await forgetSessionToken(talkchannelId, log);
+        activeSessionTokenMap.delete(accountId);
+        recordSessionInvalidated(accountId, talkchannelId);
+
+        // Start waiting before triggering, so a fast relay cannot answer
+        // before we are listening.
+        const pending = awaitPairingCode(accountId, timeoutMs);
+        reissueRequested = true;
+        innerAbort?.abort();
+        return pending;
+      },
+    };
+
+    registerAccount(accountId, talkchannelId, controller);
 
     // Tracked so pairing completion can persist the token that is actually in
     // use; the pairing_complete event itself does not carry it.
@@ -944,37 +993,45 @@ export const gatewayAdapter = {
         // Store active session token keyed by accountId
         resolvedSessionToken = sessionToken;
         activeSessionTokenMap.set(accountId, { sessionToken, relayUrl });
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] Session token stored for account`);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] Session token stored for account`);
       },
       onPairingRequired: (pairingCode, expiresIn) => {
-        // Store pairing info keyed by accountId
-        pendingPairingInfoMap.set(accountId, { pairingCode, expiresIn });
+        recordPairingRequired(accountId, talkchannelId, pairingCode, expiresIn);
 
         // Log the pairing code prominently
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ========================================`);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] ========================================`);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] 🔗 페어링 코드: ${pairingCode}`);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] 카카오톡에서 /pair ${pairingCode} 입력하세요`);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] 유효시간: ${Math.floor(expiresIn / 60)}분`);
+        log?.info(
+          `[kakao-talkchannel:${talkchannelId}] 코드 재확인: openclaw kakao pairing status`
+        );
+        log?.info(`[kakao-talkchannel:${talkchannelId}] ========================================`);
       },
       onPairingComplete: (kakaoUserId) => {
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
+        // The relay sends this ~4x in 2s. Without the dedupe each one rewrote
+        // openclaw.json (ClawHub #89).
+        if (!recordPairingComplete(accountId, talkchannelId, kakaoUserId)) return;
+
+        log?.info(`[kakao-talkchannel:${talkchannelId}] ✅ 페어링 완료: ${kakaoUserId}`);
         // Persist only now. Before pairing completes the relay deletes the
         // session once its code expires, so storing it earlier would
         // guarantee a 401 on the next start.
         if (resolvedSessionToken) {
-          void persistSessionToken(account.talkchannelId, resolvedSessionToken, log);
+          void persistSessionToken(talkchannelId, resolvedSessionToken, log);
         }
       },
       onPairingExpired: (reason) => {
-        log?.info(`[kakao-talkchannel:${account.talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
+        recordPairingExpired(accountId, talkchannelId);
+        log?.info(`[kakao-talkchannel:${talkchannelId}] ⚠️ 페어링 만료: ${reason}`);
       },
       onSessionInvalidated: (status) => {
         invalidateSessionToken(accountId, `SSE HTTP ${status}`, log);
+        recordSessionInvalidated(accountId, talkchannelId);
         // The relay has rejected this token, so a restored copy would only
         // reproduce the rejection. Drop it and fall back to a fresh pairing.
         resolvedSessionToken = undefined;
-        void forgetSessionToken(account.talkchannelId, log);
+        void forgetSessionToken(talkchannelId, log);
       },
     };
 
@@ -983,12 +1040,63 @@ export const gatewayAdapter = {
       await handleInboundMessage(msg, account, accountId, cfg, log);
     };
 
-    return startRelayStream(account, onMessage, abortSignal, {}, callbacks, log);
+    try {
+      while (!abortSignal.aborted) {
+        // On a forced re-issue the saved token must not come back through
+        // config, or resolveToken would short-circuit before createSession.
+        const roundAccount: ResolvedKakaoTalkChannel = reissueRequested
+          ? { ...account, config: { ...account.config, sessionToken: undefined } }
+          : account;
+
+        log?.info(
+          `[kakao-talkchannel:${talkchannelId}] Starting SSE stream to ${roundAccount.config.relayUrl}`
+        );
+        if (roundAccount.config.sessionToken) {
+          log?.info(
+            `[kakao-talkchannel:${talkchannelId}] Reusing the saved pairing; no new code needed`
+          );
+          recordSessionReused(accountId, talkchannelId);
+        }
+
+        reissueRequested = false;
+        innerAbort = new AbortController();
+        const stop = () => innerAbort?.abort();
+        abortSignal.addEventListener("abort", stop, { once: true });
+        // The outer signal can fire between the loop check and the listener
+        // being attached; without this the stream would never be told to stop.
+        if (abortSignal.aborted) innerAbort.abort();
+
+        try {
+          await startRelayStream(
+            roundAccount,
+            onMessage,
+            innerAbort.signal,
+            {},
+            callbacks,
+            log
+          );
+        } catch (error) {
+          if (abortSignal.aborted) return;
+          // A re-issue aborts the stream on purpose; anything else is real.
+          if (!reissueRequested) throw error;
+        } finally {
+          abortSignal.removeEventListener("abort", stop);
+        }
+
+        if (abortSignal.aborted) return;
+        // The stream ended on its own and no re-issue is pending — done.
+        if (!reissueRequested) return;
+      }
+    } finally {
+      running = false;
+      unregisterAccount(accountId);
+    }
   },
 
   stopAccount: async (ctx: StopAccountContext): Promise<void> => {
     // Clean up active session token
     activeSessionTokenMap.delete(ctx.accountId);
+    unregisterAccount(ctx.accountId);
     return Promise.resolve();
   },
 

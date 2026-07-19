@@ -52,6 +52,8 @@ describe("Plugin Entry Point (Simplified)", () => {
         runtime: mockRuntime,
         config: {},
         registerChannel: registerChannelMock,
+        registerGatewayMethod: vi.fn(),
+        registerCli: vi.fn(),
       };
 
       plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
@@ -72,6 +74,8 @@ describe("Plugin Entry Point (Simplified)", () => {
         runtime: mockRuntime,
         config: {},
         registerChannel: registerChannelMock,
+        registerGatewayMethod: vi.fn(),
+        registerCli: vi.fn(),
       };
 
       plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
@@ -94,12 +98,54 @@ describe("Plugin Entry Point (Simplified)", () => {
         config: {},
         registerChannel: registerChannelMock,
         registerHttpRoute: registerHttpRouteMock,
+        registerGatewayMethod: vi.fn(),
+        registerCli: vi.fn(),
       };
 
       plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
 
       // HTTP route should NOT be registered (relay mode only)
       expect(registerHttpRouteMock).not.toHaveBeenCalled();
+    });
+
+    it("should register both pairing gateway methods", () => {
+      const registerGatewayMethod = vi.fn();
+      const api = {
+        runtime: createMockRuntime(),
+        config: {},
+        registerChannel: vi.fn(),
+        registerGatewayMethod,
+        registerCli: vi.fn(),
+      };
+
+      plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
+
+      const methods = registerGatewayMethod.mock.calls.map((call) => call[0]);
+      expect(methods).toEqual(["kakao.pairing.status", "kakao.pairing.new"]);
+
+      // Reading a code is a read; issuing one invalidates the session.
+      expect(registerGatewayMethod.mock.calls[0][2]).toEqual({ scope: "operator.read" });
+      expect(registerGatewayMethod.mock.calls[1][2]).toEqual({ scope: "operator.write" });
+    });
+
+    it("should register the kakao CLI with explicit command metadata", () => {
+      const registerCli = vi.fn();
+      const api = {
+        runtime: createMockRuntime(),
+        config: {},
+        registerChannel: vi.fn(),
+        registerGatewayMethod: vi.fn(),
+        registerCli,
+      };
+
+      plugin.register(api as unknown as Parameters<typeof plugin.register>[0]);
+
+      expect(registerCli).toHaveBeenCalledOnce();
+      const [registrar, opts] = registerCli.mock.calls[0];
+      expect(typeof registrar).toBe("function");
+      // The host drops CLI registrations that omit this metadata.
+      expect(opts.commands).toEqual(["kakao"]);
+      expect(opts.descriptors[0]).toMatchObject({ name: "kakao", hasSubcommands: true });
     });
   });
 

@@ -118,8 +118,13 @@ export async function healthCheck(
   const timeout = createTimeoutSignal(config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const startTime = Date.now();
 
+  // Normalized like every other relay call. The raw concat used to produce
+  // `https://host//health` for any relayUrl ending in a slash — which the
+  // default value does.
+  const baseUrl = config.relayUrl.endsWith("/") ? config.relayUrl : `${config.relayUrl}/`;
+
   try {
-    const response = await fetch(`${config.relayUrl}/health`, {
+    const response = await fetch(`${baseUrl}health`, {
       method: "GET",
       headers: { Authorization: `Bearer ${config.relayToken}` },
       signal: timeout.signal,

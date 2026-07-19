@@ -50,6 +50,18 @@ openclaw plugins install -l ~/kakao-plugin
 
 > **중요**: 반드시 OpenClaw가 먼저 코드를 생성합니다.
 
+#### 서버 운영자용 (SSH + CLI)
+
+게이트웨이가 떠 있는 서버에서는 CLI로 직접 코드를 다룰 수 있습니다.
+게이트웨이 재시작이 필요 없습니다.
+
+```bash
+openclaw kakao pairing status   # 현재 코드 조회 (몇 번이든 가능)
+openclaw kakao pairing new      # 세션 폐기 후 새 코드 발급
+```
+
+자세한 절차와 문제 해결은 [docs/PAIRING_OPERATIONS.md](docs/PAIRING_OPERATIONS.md).
+
 ### 문제 해결
 
 | 문제 | OpenClaw에게 요청 |
@@ -58,6 +70,9 @@ openclaw plugins install -l ~/kakao-plugin
 | 채널이 안 보임 | "게이트웨이 재시작해줘" |
 | 페어링이 안 됨 | "카카오톡 연결해줘" (처음부터 다시) |
 | 대화가 멈춤 / tool 에러 | `/reset` 또는 `/compact` 실행 |
+
+> 운영자라면 페어링 문제는 재시작 대신
+> `openclaw kakao pairing status`부터 확인하십시오.
 
 #### OpenClaw 세션 관리
 

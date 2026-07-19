@@ -6,6 +6,8 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ResolvedKakaoTalkChannel } from "../../../src/types";
+import type { StreamCallbacks } from "../../../src/relay/stream";
+import { __resetPairingRegistry } from "../../../src/pairing/registry";
 import {
   userActivity,
   cleanupExpiredUserActivity,
@@ -62,6 +64,7 @@ describe("Gateway Adapter (Simplified)", () => {
     // Clear state between tests
     userActivity.clear();
     resetCleanupCounter();
+    __resetPairingRegistry();
   });
 
   describe("startAccount", () => {
@@ -538,105 +541,141 @@ describe("Gateway Adapter (Simplified)", () => {
   });
 
   describe("getPendingPairingInfo", () => {
+    /**
+     * Keeps the relay stream open the way production does — `startAccount` only
+     * returns once the stream ends, and pairing state is scoped to a running
+     * account. Reading after `startAccount` resolves would be reading state for
+     * an account that has already stopped.
+     */
+    async function startOpenAccount(
+      accountId: string,
+      drive: (callbacks: StreamCallbacks) => void
+    ): Promise<{ stop: () => Promise<void> }> {
+      const { startRelayStream } = await import("../../../src/relay/stream.js");
+      vi.mocked(startRelayStream).mockImplementation(
+        async (_account, _onMessage, signal, _opts, callbacks) => {
+          drive(callbacks!);
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener("abort", () => resolve(), { once: true });
+          });
+        }
+      );
+
+      const outer = new AbortController();
+      const promise = gatewayAdapter.startAccount({
+        account: mockAccount,
+        accountId,
+        cfg: {},
+        abortSignal: outer.signal,
+        log: mockLog,
+      } as any);
+
+      // Let startAccount reach the stream call.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      return {
+        stop: async () => {
+          outer.abort();
+          await promise;
+        },
+      };
+    }
+
     it("should return null when no pairing info exists", () => {
       expect(getPendingPairingInfo("account1")).toBeNull();
     });
 
     it("should return null for unknown accountId", () => {
-      // Even after another account has pairing info, unknown account returns null
       expect(getPendingPairingInfo("nonexistent")).toBeNull();
     });
 
-    it("should return and clear pairing info by accountId", async () => {
-      // Trigger pairing via startAccount (startRelayStream is mocked)
-      const { startRelayStream } = await import("../../../src/relay/stream.js");
-      const mockStartRelayStream = vi.mocked(startRelayStream);
+    it("should return pairing info by accountId without consuming it", async () => {
+      const { stop } = await startOpenAccount("test-account", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-1234", 300);
+      });
 
-      // Capture the callbacks passed to startRelayStream
-      mockStartRelayStream.mockImplementation(
-        async (_account, _onMessage, _signal, _opts, callbacks) => {
-          callbacks?.onPairingRequired?.("CODE-1234", 300);
-        }
-      );
+      // Non-destructive: the old implementation deleted the entry on read, so
+      // an operator could only ever retrieve the code once.
+      expect(getPendingPairingInfo("test-account")).toEqual({
+        pairingCode: "CODE-1234",
+        expiresIn: 300,
+      });
+      expect(getPendingPairingInfo("test-account")).toEqual({
+        pairingCode: "CODE-1234",
+        expiresIn: 300,
+      });
 
-      const ctx = {
-        account: mockAccount,
-        accountId: "test-account",
-        cfg: {},
-        abortSignal: new AbortController().signal,
-        log: mockLog,
-      };
+      await stop();
+    });
 
-      await gatewayAdapter.startAccount(ctx as any);
+    it("should stop returning a code once pairing completes", async () => {
+      const { stop } = await startOpenAccount("paired-account", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-DONE", 300);
+        callbacks.onPairingComplete?.("kakao-user-1");
+      });
 
-      // Should return pairing info for the correct accountId
-      const info = getPendingPairingInfo("test-account");
-      expect(info).toEqual({ pairingCode: "CODE-1234", expiresIn: 300 });
+      expect(getPendingPairingInfo("paired-account")).toBeNull();
 
-      // Should be cleared after reading
-      expect(getPendingPairingInfo("test-account")).toBeNull();
+      await stop();
+    });
+
+    it("should stop returning a code once pairing expires", async () => {
+      const { stop } = await startOpenAccount("expired-account", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-GONE", 300);
+        callbacks.onPairingExpired?.("timeout");
+      });
+
+      expect(getPendingPairingInfo("expired-account")).toBeNull();
+
+      await stop();
     });
 
     it("should isolate pairing info between accounts", async () => {
-      const { startRelayStream } = await import("../../../src/relay/stream.js");
-      const mockStartRelayStream = vi.mocked(startRelayStream);
+      const a = await startOpenAccount("account-a", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-AAAA", 300);
+      });
+      const b = await startOpenAccount("account-b", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-BBBB", 600);
+      });
 
-      // First account
-      mockStartRelayStream.mockImplementationOnce(
-        async (_account, _onMessage, _signal, _opts, callbacks) => {
-          callbacks?.onPairingRequired?.("CODE-AAAA", 300);
-        }
-      );
+      expect(getPendingPairingInfo("account-a")).toEqual({
+        pairingCode: "CODE-AAAA",
+        expiresIn: 300,
+      });
+      expect(getPendingPairingInfo("account-b")).toEqual({
+        pairingCode: "CODE-BBBB",
+        expiresIn: 600,
+      });
 
-      await gatewayAdapter.startAccount({
-        account: mockAccount,
-        accountId: "account-a",
-        cfg: {},
-        abortSignal: new AbortController().signal,
-        log: mockLog,
-      } as any);
-
-      // Second account
-      mockStartRelayStream.mockImplementationOnce(
-        async (_account, _onMessage, _signal, _opts, callbacks) => {
-          callbacks?.onPairingRequired?.("CODE-BBBB", 600);
-        }
-      );
-
-      await gatewayAdapter.startAccount({
-        account: mockAccount,
-        accountId: "account-b",
-        cfg: {},
-        abortSignal: new AbortController().signal,
-        log: mockLog,
-      } as any);
-
-      // Each account should get its own pairing info
-      expect(getPendingPairingInfo("account-a")).toEqual({ pairingCode: "CODE-AAAA", expiresIn: 300 });
-      expect(getPendingPairingInfo("account-b")).toEqual({ pairingCode: "CODE-BBBB", expiresIn: 600 });
+      await a.stop();
+      await b.stop();
     });
 
     it("should fallback to first entry when no accountId provided", async () => {
-      const { startRelayStream } = await import("../../../src/relay/stream.js");
-      const mockStartRelayStream = vi.mocked(startRelayStream);
+      const { stop } = await startOpenAccount("some-account", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-FALLBACK", 120);
+      });
 
-      mockStartRelayStream.mockImplementationOnce(
-        async (_account, _onMessage, _signal, _opts, callbacks) => {
-          callbacks?.onPairingRequired?.("CODE-FALLBACK", 120);
-        }
-      );
+      expect(getPendingPairingInfo()).toEqual({
+        pairingCode: "CODE-FALLBACK",
+        expiresIn: 120,
+      });
 
-      await gatewayAdapter.startAccount({
-        account: mockAccount,
-        accountId: "some-account",
-        cfg: {},
-        abortSignal: new AbortController().signal,
-        log: mockLog,
-      } as any);
+      await stop();
+    });
 
-      // No accountId → returns first entry
-      const info = getPendingPairingInfo();
-      expect(info).toEqual({ pairingCode: "CODE-FALLBACK", expiresIn: 120 });
+    it("should forget pairing state once the account stops", async () => {
+      const { stop } = await startOpenAccount("ephemeral", (callbacks) => {
+        callbacks.onPairingRequired?.("CODE-TEMP", 300);
+      });
+      expect(getPendingPairingInfo("ephemeral")).not.toBeNull();
+
+      await stop();
+
+      // A code from a dead session is useless; it must not linger in memory.
+      expect(getPendingPairingInfo("ephemeral")).toBeNull();
     });
   });
 });

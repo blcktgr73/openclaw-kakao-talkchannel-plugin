@@ -175,13 +175,22 @@ describe("ChannelStatusAdapter", () => {
       ...overrides,
     });
 
+    // Issues must match the host's ChannelStatusIssue shape
+    // ({ channel, accountId, kind, message, fix? }). The previous
+    // { level, message } shape was not understood by the host, so these
+    // issues were produced in a form nothing rendered.
     it("warns when configured but disabled", () => {
       const issues = statusAdapter.collectStatusIssues!([
         makeSnapshot({ enabled: false, configured: true, running: false }),
       ]);
 
       expect(issues).toContainEqual(
-        expect.objectContaining({ level: "warn", message: expect.stringContaining("configured but disabled") })
+        expect.objectContaining({
+          channel: "kakao-talkchannel",
+          accountId: "default",
+          kind: "config",
+          message: expect.stringContaining("configured but disabled"),
+        })
       );
     });
 
@@ -191,8 +200,56 @@ describe("ChannelStatusAdapter", () => {
       ]);
 
       expect(issues).toContainEqual(
-        expect.objectContaining({ level: "error", message: expect.stringContaining("relay server unreachable") })
+        expect.objectContaining({
+          channel: "kakao-talkchannel",
+          kind: "runtime",
+          message: expect.stringContaining("relay server unreachable"),
+        })
       );
+    });
+
+    it("emits only the documented issue fields", () => {
+      const issues = statusAdapter.collectStatusIssues!([
+        makeSnapshot({ enabled: false, configured: true, running: false }),
+      ]);
+
+      for (const issue of issues) {
+        expect(Object.keys(issue).sort()).toEqual(
+          expect.arrayContaining(["accountId", "channel", "kind", "message"])
+        );
+        expect(issue).not.toHaveProperty("level");
+      }
+    });
+
+    it("prompts for a pairing code when pairing is pending", () => {
+      const issues = statusAdapter.collectStatusIssues!([
+        makeSnapshot({ pairingState: "pending" } as any),
+      ]);
+
+      const issue = issues.find((candidate) => candidate.kind === "auth");
+      expect(issue).toBeDefined();
+      expect(issue!.message).toContain("waiting to be paired");
+      expect(issue!.fix).toBe("Run: openclaw kakao pairing status");
+      // The code itself must not leak into widely-captured status output.
+      expect(JSON.stringify(issues)).not.toContain("CODE-");
+    });
+
+    it("prompts to re-issue when pairing has expired", () => {
+      const issues = statusAdapter.collectStatusIssues!([
+        makeSnapshot({ pairingState: "expired" } as any),
+      ]);
+
+      const issue = issues.find((candidate) => candidate.kind === "auth");
+      expect(issue).toBeDefined();
+      expect(issue!.fix).toBe("Run: openclaw kakao pairing new");
+    });
+
+    it("does not raise a pairing issue once paired", () => {
+      const issues = statusAdapter.collectStatusIssues!([
+        makeSnapshot({ pairingState: "paired" } as any),
+      ]);
+
+      expect(issues.find((candidate) => candidate.kind === "auth")).toBeUndefined();
     });
 
     it("warns when no inbound messages for 30+ minutes", () => {
@@ -203,7 +260,10 @@ describe("ChannelStatusAdapter", () => {
       ]);
 
       expect(issues).toContainEqual(
-        expect.objectContaining({ level: "warn", message: expect.stringContaining("has not received messages") })
+        expect.objectContaining({
+          kind: "runtime",
+          message: expect.stringContaining("has not received messages"),
+        })
       );
     });
 

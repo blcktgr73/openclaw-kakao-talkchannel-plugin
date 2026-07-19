@@ -5,16 +5,13 @@
  * No direct mode webhook registration.
  */
 
-import type { PluginRuntime } from "openclaw/plugin-sdk";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { kakaoPlugin, getPendingPairingInfo } from "./src/channel.js";
 import { setKakaoRuntime } from "./src/runtime.js";
 import { KakaoChannelConfigSchema } from "./src/config/schema.js";
-
-interface OpenClawPluginApi {
-  runtime: PluginRuntime;
-  config: unknown;
-  registerChannel: (opts: { plugin: unknown }) => void;
-}
+import { registerPairingGatewayMethods } from "./src/pairing/gateway-methods.js";
+import { registerPairingCli } from "./src/pairing/cli.js";
+import { getPairingSnapshot, listPairingSnapshots } from "./src/pairing/registry.js";
 
 const plugin = {
   id: "kakao-talkchannel",
@@ -30,8 +27,14 @@ const plugin = {
   register(api: OpenClawPluginApi): void {
     setKakaoRuntime(api.runtime);
     api.registerChannel({ plugin: kakaoPlugin });
+
+    // Pairing state lives in the gateway process; the CLI reaches it over RPC.
+    // Both are registered unconditionally — the host loads this plugin in the
+    // CLI process too, and each side only exercises what it needs.
+    registerPairingGatewayMethods(api);
+    registerPairingCli(api);
   },
 };
 
 export default plugin;
-export { getPendingPairingInfo };
+export { getPendingPairingInfo, getPairingSnapshot, listPairingSnapshots };
