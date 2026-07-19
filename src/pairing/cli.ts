@@ -147,6 +147,17 @@ export function formatSnapshot(snapshot: PairingSnapshot | null): string {
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Emit machine-readable output on raw stdout.
+ *
+ * `ctx.logger.info` prefixes every line with a timestamp and `[plugins]`, which
+ * is right for human output and fatal for JSON — `... --json | jq .` would fail
+ * to parse. Verified on a live gateway 2026-07-20.
+ */
+function writeJson(value: unknown): void {
+  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+/**
  * Wait for the gateway to publish a code issued after `requestedAt`.
  *
  * Comparing against `issuedAt` is what distinguishes a genuinely new code from
@@ -200,9 +211,7 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
         const snapshot = selectAccount(state, options.account);
 
         if (options.json) {
-          ctx.logger.info(
-            JSON.stringify({ accounts: state.accounts, account: snapshot }, null, 2)
-          );
+          writeJson({ accounts: state.accounts, account: snapshot });
           return;
         }
         ctx.logger.info(formatSnapshot(snapshot));
@@ -228,7 +237,7 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
         );
 
         if (options.json) {
-          ctx.logger.info(JSON.stringify({ account: snapshot }, null, 2));
+          writeJson({ account: snapshot });
           return;
         }
         ctx.logger.info(formatSnapshot(snapshot));

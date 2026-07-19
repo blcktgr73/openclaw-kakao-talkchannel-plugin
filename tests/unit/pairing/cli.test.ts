@@ -167,13 +167,28 @@ describe("pairing CLI", () => {
       expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("CODE-B"));
     });
 
-    it("emits JSON with --json", async () => {
+    it("emits parseable JSON on raw stdout with --json", async () => {
+      // The logger prefixes every line with a timestamp and [plugins], which
+      // would make `... --json | jq .` fail. Machine output must bypass it.
       writePairingState([snapshot()]);
       const { actions, logger } = registerAndGetActions();
 
-      await actions.get("kakao pairing status")!({ json: true });
+      const written: string[] = [];
+      const spy = vi
+        .spyOn(process.stdout, "write")
+        .mockImplementation((chunk: string | Uint8Array) => {
+          written.push(String(chunk));
+          return true;
+        });
 
-      const output = logger.info.mock.calls[0][0] as string;
+      try {
+        await actions.get("kakao pairing status")!({ json: true });
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(logger.info).not.toHaveBeenCalled();
+      const output = written.join("");
       expect(() => JSON.parse(output)).not.toThrow();
       expect(JSON.parse(output).account.pairingCode).toBe("CODE-1234");
     });
