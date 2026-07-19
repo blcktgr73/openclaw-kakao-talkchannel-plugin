@@ -3,16 +3,17 @@
  *
  * The pairing token used to live only in an in-memory Map, so restarting the
  * gateway threw it away and the user had to pair again with a fresh code.
- * These tests pin the wiring that makes a completed pairing survive a restart.
+ * Restoring needs no code here — the token is written into the account config,
+ * which resolveToken already reads on start. What this file pins is *when* the
+ * gateway saves and clears it.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ResolvedKakaoTalkChannel } from "../../../src/types";
 import type { StreamCallbacks } from "../../../src/relay/stream";
 
 const startRelayStream = vi.fn().mockResolvedValue(undefined);
-const readStoredSession = vi.fn();
-const writeStoredSession = vi.fn();
-const clearStoredSession = vi.fn();
+const persistSessionToken = vi.fn();
+const forgetSessionToken = vi.fn();
 
 vi.mock("../../../src/runtime.js", () => ({
   getKakaoRuntime: () => ({
@@ -25,9 +26,8 @@ vi.mock("../../../src/relay/stream.js", () => ({
 }));
 
 vi.mock("../../../src/relay/session-store.js", () => ({
-  readStoredSession: (...args: unknown[]) => readStoredSession(...args),
-  writeStoredSession: (...args: unknown[]) => writeStoredSession(...args),
-  clearStoredSession: (...args: unknown[]) => clearStoredSession(...args),
+  persistSessionToken: (...args: unknown[]) => persistSessionToken(...args),
+  forgetSessionToken: (...args: unknown[]) => forgetSessionToken(...args),
 }));
 
 const { gatewayAdapter } = await import("../../../src/adapters/gateway");
@@ -56,71 +56,52 @@ function capturedCallbacks(): StreamCallbacks {
   return startRelayStream.mock.calls[0][4] as StreamCallbacks;
 }
 
-function accountPassedToStream(): ResolvedKakaoTalkChannel {
-  return startRelayStream.mock.calls[0][0] as ResolvedKakaoTalkChannel;
-}
-
 describe("gateway pairing persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     startRelayStream.mockResolvedValue(undefined);
-    readStoredSession.mockResolvedValue(null);
-    writeStoredSession.mockResolvedValue(undefined);
-    clearStoredSession.mockResolvedValue(undefined);
+    persistSessionToken.mockResolvedValue(undefined);
+    forgetSessionToken.mockResolvedValue(undefined);
   });
 
-  it("restores a stored pairing so no new code is issued", async () => {
-    readStoredSession.mockResolvedValue("stored-token");
-
-    await gatewayAdapter.startAccount(startCtx(makeAccount()));
-
-    expect(readStoredSession).toHaveBeenCalledWith("acct-1", RELAY, expect.anything());
-    expect(accountPassedToStream().config.sessionToken).toBe("stored-token");
-  });
-
-  it("starts a fresh pairing when nothing is stored", async () => {
-    await gatewayAdapter.startAccount(startCtx(makeAccount()));
-
-    expect(accountPassedToStream().config.sessionToken).toBeUndefined();
-  });
-
-  it("lets an explicit configured sessionToken win over the stored one", async () => {
-    readStoredSession.mockResolvedValue("stored-token");
-
-    await gatewayAdapter.startAccount(startCtx(makeAccount({ sessionToken: "configured" })));
-
-    // An operator-set token is a deliberate choice; never override it.
-    expect(readStoredSession).not.toHaveBeenCalled();
-    expect(accountPassedToStream().config.sessionToken).toBe("configured");
-  });
-
-  it("persists the pairing only once the relay confirms it completed", async () => {
+  it("saves the pairing only once the relay confirms it completed", async () => {
     await gatewayAdapter.startAccount(startCtx(makeAccount()));
     const callbacks = capturedCallbacks();
 
     callbacks.onTokenResolved?.("fresh-token", RELAY);
     // Before pairing completes the relay deletes the session when its code
-    // expires, so nothing may be written yet.
-    expect(writeStoredSession).not.toHaveBeenCalled();
+    // expires, so saving now would guarantee a 401 on the next start.
+    expect(persistSessionToken).not.toHaveBeenCalled();
 
     callbacks.onPairingComplete?.("kakao-user-1");
-    expect(writeStoredSession).toHaveBeenCalledWith(
-      "acct-1",
+    expect(persistSessionToken).toHaveBeenCalledWith(
+      "default",
       "fresh-token",
-      RELAY,
       expect.anything()
     );
   });
 
-  it("does not persist anything if pairing completes without a resolved token", async () => {
+  it("saves under the account's own id", async () => {
+    const account = makeAccount();
+    (account as unknown as { talkchannelId: string }).talkchannelId = "work";
+
+    await gatewayAdapter.startAccount(startCtx(account));
+    const callbacks = capturedCallbacks();
+    callbacks.onTokenResolved?.("tok", RELAY);
+    callbacks.onPairingComplete?.("kakao-user-1");
+
+    expect(persistSessionToken).toHaveBeenCalledWith("work", "tok", expect.anything());
+  });
+
+  it("saves nothing if pairing completes without a resolved token", async () => {
     await gatewayAdapter.startAccount(startCtx(makeAccount()));
 
     capturedCallbacks().onPairingComplete?.("kakao-user-1");
 
-    expect(writeStoredSession).not.toHaveBeenCalled();
+    expect(persistSessionToken).not.toHaveBeenCalled();
   });
 
-  it("drops the stored pairing once the relay rejects the token", async () => {
+  it("clears the saved pairing once the relay rejects the token", async () => {
     await gatewayAdapter.startAccount(startCtx(makeAccount()));
     const callbacks = capturedCallbacks();
 
@@ -128,10 +109,10 @@ describe("gateway pairing persistence", () => {
     callbacks.onSessionInvalidated?.(401);
 
     // Keeping it would only reproduce the rejection on the next start.
-    expect(clearStoredSession).toHaveBeenCalledWith("acct-1", expect.anything());
+    expect(forgetSessionToken).toHaveBeenCalledWith("default", expect.anything());
   });
 
-  it("does not re-persist an invalidated token if pairing is retried", async () => {
+  it("does not re-save an invalidated token if pairing is retried", async () => {
     await gatewayAdapter.startAccount(startCtx(makeAccount()));
     const callbacks = capturedCallbacks();
 
@@ -139,6 +120,15 @@ describe("gateway pairing persistence", () => {
     callbacks.onSessionInvalidated?.(401);
     callbacks.onPairingComplete?.("kakao-user-1");
 
-    expect(writeStoredSession).not.toHaveBeenCalled();
+    expect(persistSessionToken).not.toHaveBeenCalled();
+  });
+
+  it("reports that a saved pairing is being reused instead of issuing a code", async () => {
+    const ctx = startCtx(makeAccount({ sessionToken: "saved-token" }));
+
+    await gatewayAdapter.startAccount(ctx);
+
+    const log = (ctx as unknown as { log: { info: ReturnType<typeof vi.fn> } }).log;
+    expect(log.info).toHaveBeenCalledWith(expect.stringContaining("Reusing the saved pairing"));
   });
 });

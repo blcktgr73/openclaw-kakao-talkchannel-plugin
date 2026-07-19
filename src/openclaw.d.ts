@@ -6,23 +6,23 @@
 // tell us. Mirror signatures from node_modules/openclaw/dist when adding to
 // this file, and keep it to the members the plugin actually uses.
 declare module "openclaw/plugin-sdk" {
-  export interface PluginStateKeyedStore<T> {
-    register(key: string, value: T, opts?: { ttlMs?: number }): Promise<void>;
-    lookup(key: string): Promise<T | undefined>;
-    delete(key: string): Promise<boolean>;
-  }
+  export type ConfigAfterWrite =
+    | { mode: "auto" }
+    | { mode: "restart"; reason: string }
+    | { mode: "none"; reason: string };
 
-  export interface OpenKeyedStoreOptions {
-    namespace: string;
-    maxEntries: number;
-    overflowPolicy?: "evict-oldest" | "reject-new";
-    defaultTtlMs?: number;
+  export interface MutateConfigFileParams {
+    afterWrite: ConfigAfterWrite;
+    mutate: (draft: Record<string, unknown>) => void | Promise<void>;
   }
 
   export interface PluginRuntime {
-    /** SQLite-backed keyed storage; survives a gateway restart. */
-    state: {
-      openKeyedStore: <T>(options: OpenKeyedStoreOptions) => PluginStateKeyedStore<T>;
+    /**
+     * Config read/write. Unlike `state.openKeyedStore`, this is not restricted
+     * to bundled/officially-installed plugins.
+     */
+    config: {
+      mutateConfigFile: (params: MutateConfigFileParams) => Promise<unknown>;
     };
     logger: {
       debug: (...args: unknown[]) => void;

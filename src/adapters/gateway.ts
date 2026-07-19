@@ -18,11 +18,7 @@ import type {
   ChannelAccountSnapshot,
 } from "../types.js";
 import { startRelayStream, type StreamCallbacks } from "../relay/stream.js";
-import {
-  readStoredSession,
-  writeStoredSession,
-  clearStoredSession,
-} from "../relay/session-store.js";
+import { persistSessionToken, forgetSessionToken } from "../relay/session-store.js";
 import { getKakaoRuntime } from "../runtime.js";
 import { sendReply, RelayHttpError } from "../relay/client.js";
 import { stripMarkdown } from "../kakao/response.js";
@@ -923,24 +919,10 @@ export const gatewayAdapter = {
       `[kakao-talkchannel:${account.talkchannelId}] Starting SSE stream to ${account.config.relayUrl}`
     );
 
-    const effectiveRelayUrl = account.config.relayUrl ?? DEFAULT_RELAY_URL;
-
-    // Restore a pairing from a previous run. An explicit sessionToken in the
-    // config still wins — that is an operator decision. Without this the
-    // pairing lived only in memory, so every gateway restart issued a fresh
-    // pairing code and the user had to pair again.
-    let accountForStream = account;
-    if (!account.config.sessionToken) {
-      const storedToken = await readStoredSession(accountId, effectiveRelayUrl, log);
-      if (storedToken) {
-        log?.info(
-          `[kakao-talkchannel:${account.talkchannelId}] Restored the stored pairing; no new code needed`
-        );
-        accountForStream = {
-          ...account,
-          config: { ...account.config, sessionToken: storedToken },
-        };
-      }
+    if (account.config.sessionToken) {
+      log?.info(
+        `[kakao-talkchannel:${account.talkchannelId}] Reusing the saved pairing; no new code needed`
+      );
     }
 
     // Tracked so pairing completion can persist the token that is actually in
@@ -981,7 +963,7 @@ export const gatewayAdapter = {
         // session once its code expires, so storing it earlier would
         // guarantee a 401 on the next start.
         if (resolvedSessionToken) {
-          void writeStoredSession(accountId, resolvedSessionToken, effectiveRelayUrl, log);
+          void persistSessionToken(account.talkchannelId, resolvedSessionToken, log);
         }
       },
       onPairingExpired: (reason) => {
@@ -992,7 +974,7 @@ export const gatewayAdapter = {
         // The relay has rejected this token, so a restored copy would only
         // reproduce the rejection. Drop it and fall back to a fresh pairing.
         resolvedSessionToken = undefined;
-        void clearStoredSession(accountId, log);
+        void forgetSessionToken(account.talkchannelId, log);
       },
     };
 
@@ -1001,7 +983,7 @@ export const gatewayAdapter = {
       await handleInboundMessage(msg, account, accountId, cfg, log);
     };
 
-    return startRelayStream(accountForStream, onMessage, abortSignal, {}, callbacks, log);
+    return startRelayStream(account, onMessage, abortSignal, {}, callbacks, log);
   },
 
   stopAccount: async (ctx: StopAccountContext): Promise<void> => {

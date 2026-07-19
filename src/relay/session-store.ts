@@ -1,133 +1,99 @@
 /**
- * Persistent storage for paired relay sessions.
+ * Persistence for a completed pairing.
  *
- * The pairing session token used to live only in an in-memory Map, so every
- * gateway restart threw it away and forced the user to pair again. This store
- * is SQLite-backed through the OpenClaw plugin state API, so a completed
- * pairing survives restarts until the relay actually invalidates it.
+ * The pairing token used to live only in an in-memory Map, so every gateway
+ * restart threw it away and the user had to pair again with a fresh code.
  *
- * Follows the pattern the bundled Telegram channel uses for its update-offset
- * store: a plugin-owned namespace, per-account keying done by the plugin, a
- * version field validated on read, and a stored relay URL so state belonging
- * to a different relay is discarded instead of replayed against it.
+ * The token is written back into the account's own config entry, which is
+ * where `resolveToken` already looks first and where the setup wizard already
+ * writes it. Nothing extra is needed to restore it: the gateway reloads
+ * openclaw.json on start and hands the account config straight to the stream.
  *
- * Storage is best-effort by design. A failing state store must never stop the
- * channel from connecting or pairing — it only costs the user a re-pair.
+ * `runtime.state.openKeyedStore` — the store the bundled Telegram channel uses
+ * — is not an option here. It is gated to bundled or officially installed
+ * plugins ("openKeyedStore is only available for trusted plugins in this
+ * release"), and a locally linked plugin does not qualify. `runtime.config` has
+ * no such gate.
+ *
+ * Persistence is best-effort throughout: failing to save costs the user a
+ * re-pair, never a dead channel.
  */
 import { getKakaoRuntime } from "../runtime.js";
 
-const NAMESPACE = "kakao-talkchannel.sessions";
-const MAX_ENTRIES = 100;
-const STORE_VERSION = 1;
-
-export interface StoredRelaySession {
-  version: number;
-  sessionToken: string;
-  relayUrl: string;
-}
+const CHANNEL_ID = "kakao-talkchannel";
 
 interface StoreLogger {
   info?: (msg: string) => void;
   warn?: (msg: string) => void;
 }
 
-function openStore() {
-  return getKakaoRuntime().state.openKeyedStore<StoredRelaySession>({
-    namespace: NAMESPACE,
-    maxEntries: MAX_ENTRIES,
+type MutableRecord = Record<string, unknown>;
+
+/** Walk to the account entry, creating the intermediate objects as needed. */
+function accountEntry(draft: MutableRecord, talkchannelId: string): MutableRecord {
+  const channels = (draft.channels ??= {}) as MutableRecord;
+  const channel = (channels[CHANNEL_ID] ??= {}) as MutableRecord;
+  const accounts = (channel.accounts ??= {}) as MutableRecord;
+  return (accounts[talkchannelId] ??= {}) as MutableRecord;
+}
+
+async function mutateAccount(
+  talkchannelId: string,
+  apply: (account: MutableRecord) => void
+): Promise<void> {
+  await getKakaoRuntime().config.mutateConfigFile({
+    // "none" on purpose. This write only records a token the running process
+    // already holds, so a reload or restart would cost a reconnect and buy
+    // nothing — and restarting from inside the pairing flow would loop.
+    afterWrite: { mode: "none", reason: "kakao-talkchannel pairing token" },
+    mutate: (draft) => {
+      apply(accountEntry(draft as MutableRecord, talkchannelId));
+    },
   });
 }
 
-/** The SDK hands out a flat namespace; account scoping is the plugin's job. */
-export function normalizeAccountKey(accountId: string): string {
-  const trimmed = accountId.trim();
-  return trimmed.length > 0 ? trimmed : "default";
-}
-
-/** Compared normalized so a trailing slash alone is not treated as a new relay. */
-function normalizeRelayUrl(relayUrl: string): string {
-  return relayUrl.endsWith("/") ? relayUrl : `${relayUrl}/`;
-}
-
-function isStoredRelaySession(value: unknown): value is StoredRelaySession {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const candidate = value as Partial<StoredRelaySession>;
-  return (
-    candidate.version === STORE_VERSION &&
-    typeof candidate.sessionToken === "string" &&
-    candidate.sessionToken.length > 0 &&
-    typeof candidate.relayUrl === "string" &&
-    candidate.relayUrl.length > 0
-  );
-}
-
 /**
- * Return a previously paired session token for this account, or null.
+ * Save a paired session token so the pairing survives a restart.
  *
- * Returns null when nothing is stored, when the stored shape does not match
- * the current version, or when the pairing belongs to a different relay —
- * replaying a token against another relay would only produce a 401.
+ * Only call this once pairing has completed. The relay deletes a session when
+ * its pairing code expires, so persisting an unpaired token would guarantee a
+ * 401 on the next start.
  */
-export async function readStoredSession(
-  accountId: string,
-  relayUrl: string,
-  log?: StoreLogger
-): Promise<string | null> {
-  try {
-    const stored = await openStore().lookup(normalizeAccountKey(accountId));
-    if (stored === undefined) {
-      return null;
-    }
-    if (!isStoredRelaySession(stored)) {
-      log?.warn?.("[kakao-talkchannel] Stored session has an unexpected shape; ignoring it");
-      return null;
-    }
-    if (normalizeRelayUrl(stored.relayUrl) !== normalizeRelayUrl(relayUrl)) {
-      log?.info?.("[kakao-talkchannel] Stored session belongs to a different relay; ignoring it");
-      return null;
-    }
-    return stored.sessionToken;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    log?.warn?.(`[kakao-talkchannel] Could not read stored session: ${message}`);
-    return null;
-  }
-}
-
-/**
- * Persist a paired session token.
- *
- * Only call this once pairing has actually completed. An unpaired session is
- * deleted by the relay when its pairing code expires, so persisting one would
- * guarantee a 401 on the next start.
- */
-export async function writeStoredSession(
-  accountId: string,
+export async function persistSessionToken(
+  talkchannelId: string,
   sessionToken: string,
-  relayUrl: string,
   log?: StoreLogger
 ): Promise<void> {
   try {
-    await openStore().register(normalizeAccountKey(accountId), {
-      version: STORE_VERSION,
-      sessionToken,
-      relayUrl,
+    await mutateAccount(talkchannelId, (account) => {
+      account.sessionToken = sessionToken;
     });
-    log?.info?.("[kakao-talkchannel] Pairing persisted; it will survive a gateway restart");
+    log?.info?.(
+      `[kakao-talkchannel:${talkchannelId}] Pairing saved; it will survive a gateway restart`
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    log?.warn?.(`[kakao-talkchannel] Could not persist pairing: ${message}`);
+    log?.warn?.(
+      `[kakao-talkchannel:${talkchannelId}] Could not save the pairing: ${message}. ` +
+        `Pairing will be required again after a restart.`
+    );
   }
 }
 
-/** Drop a stored session once the relay has rejected it. */
-export async function clearStoredSession(accountId: string, log?: StoreLogger): Promise<void> {
+/** Drop a saved token once the relay has rejected it. */
+export async function forgetSessionToken(
+  talkchannelId: string,
+  log?: StoreLogger
+): Promise<void> {
   try {
-    await openStore().delete(normalizeAccountKey(accountId));
+    await mutateAccount(talkchannelId, (account) => {
+      delete account.sessionToken;
+    });
+    log?.info?.(`[kakao-talkchannel:${talkchannelId}] Saved pairing cleared`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    log?.warn?.(`[kakao-talkchannel] Could not clear stored session: ${message}`);
+    log?.warn?.(
+      `[kakao-talkchannel:${talkchannelId}] Could not clear the saved pairing: ${message}`
+    );
   }
 }

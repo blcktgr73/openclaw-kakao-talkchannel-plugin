@@ -1,145 +1,131 @@
 /**
- * Persistent relay session store.
+ * Pairing persistence.
  *
- * Covers the defect this store exists to fix: the pairing token used to live
- * only in an in-memory Map, so a gateway restart forced the user to pair again.
+ * The pairing token used to live only in an in-memory Map, so a gateway
+ * restart threw it away and the user had to pair again. It is now written into
+ * the account's own config entry — the same place resolveToken already reads.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const store = {
-  register: vi.fn(),
-  lookup: vi.fn(),
-  delete: vi.fn(),
-};
-
-const openKeyedStore = vi.fn(() => store);
+const mutateConfigFile = vi.fn();
 
 vi.mock("../../../src/runtime.js", () => ({
-  getKakaoRuntime: () => ({ state: { openKeyedStore } }),
+  getKakaoRuntime: () => ({ config: { mutateConfigFile } }),
 }));
 
-const { readStoredSession, writeStoredSession, clearStoredSession, normalizeAccountKey } =
-  await import("../../../src/relay/session-store");
+const { persistSessionToken, forgetSessionToken } = await import(
+  "../../../src/relay/session-store"
+);
 
-const RELAY = "https://relay.example.com/";
+/** Runs the recorded mutation against a draft and returns the result. */
+async function applyMutation(draft: Record<string, unknown>) {
+  const params = mutateConfigFile.mock.calls[0][0];
+  await params.mutate(draft);
+  return draft;
+}
 
-describe("session-store", () => {
+function accountIn(draft: Record<string, unknown>, id = "default") {
+  const channels = draft.channels as Record<string, Record<string, Record<string, unknown>>>;
+  return channels["kakao-talkchannel"].accounts[id] as Record<string, unknown>;
+}
+
+describe("pairing persistence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    store.register.mockResolvedValue(undefined);
-    store.lookup.mockResolvedValue(undefined);
-    store.delete.mockResolvedValue(true);
+    mutateConfigFile.mockResolvedValue({});
   });
 
-  describe("readStoredSession", () => {
-    it("returns the token when a matching session is stored", async () => {
-      store.lookup.mockResolvedValue({ version: 1, sessionToken: "tok-1", relayUrl: RELAY });
+  describe("persistSessionToken", () => {
+    it("writes the token under the account's config entry", async () => {
+      await persistSessionToken("default", "tok-1");
 
-      await expect(readStoredSession("acct", RELAY)).resolves.toBe("tok-1");
-      expect(store.lookup).toHaveBeenCalledWith("acct");
+      const draft = await applyMutation({});
+      expect(accountIn(draft).sessionToken).toBe("tok-1");
     });
 
-    it("returns null when nothing is stored", async () => {
-      await expect(readStoredSession("acct", RELAY)).resolves.toBeNull();
-    });
+    it("keeps other settings on the same account", async () => {
+      await persistSessionToken("default", "tok-1");
 
-    it("ignores a session stored for a different relay", async () => {
-      store.lookup.mockResolvedValue({
-        version: 1,
+      const draft = await applyMutation({
+        channels: {
+          "kakao-talkchannel": {
+            accounts: { default: { enabled: true, dmPolicy: "pairing" } },
+          },
+        },
+      });
+
+      expect(accountIn(draft)).toEqual({
+        enabled: true,
+        dmPolicy: "pairing",
         sessionToken: "tok-1",
-        relayUrl: "https://other-relay.example.com/",
-      });
-
-      // Replaying a token against another relay can only produce a 401.
-      await expect(readStoredSession("acct", RELAY)).resolves.toBeNull();
-    });
-
-    it("treats a trailing slash difference as the same relay", async () => {
-      store.lookup.mockResolvedValue({
-        version: 1,
-        sessionToken: "tok-1",
-        relayUrl: "https://relay.example.com",
-      });
-
-      await expect(readStoredSession("acct", "https://relay.example.com/")).resolves.toBe("tok-1");
-    });
-
-    it("ignores a stored value from an older store version", async () => {
-      store.lookup.mockResolvedValue({ version: 0, sessionToken: "tok-1", relayUrl: RELAY });
-
-      await expect(readStoredSession("acct", RELAY)).resolves.toBeNull();
-    });
-
-    it.each([
-      ["missing token", { version: 1, relayUrl: RELAY }],
-      ["empty token", { version: 1, sessionToken: "", relayUrl: RELAY }],
-      ["not an object", "nope"],
-      ["null", null],
-    ])("ignores a malformed stored value (%s)", async (_label, value) => {
-      store.lookup.mockResolvedValue(value);
-
-      await expect(readStoredSession("acct", RELAY)).resolves.toBeNull();
-    });
-
-    it("degrades to null when the state store throws", async () => {
-      store.lookup.mockRejectedValue(new Error("sqlite is unhappy"));
-
-      // A broken state store must cost a re-pair, never a dead channel.
-      await expect(readStoredSession("acct", RELAY)).resolves.toBeNull();
-    });
-  });
-
-  describe("writeStoredSession", () => {
-    it("persists token, relay and version under the account key", async () => {
-      await writeStoredSession("acct", "tok-1", RELAY);
-
-      expect(store.register).toHaveBeenCalledWith("acct", {
-        version: 1,
-        sessionToken: "tok-1",
-        relayUrl: RELAY,
       });
     });
 
-    it("does not throw when the state store fails", async () => {
-      store.register.mockRejectedValue(new Error("disk full"));
+    it("does not disturb other channels", async () => {
+      await persistSessionToken("default", "tok-1");
 
-      await expect(writeStoredSession("acct", "tok-1", RELAY)).resolves.toBeUndefined();
-    });
-  });
-
-  describe("clearStoredSession", () => {
-    it("deletes the stored entry", async () => {
-      await clearStoredSession("acct");
-
-      expect(store.delete).toHaveBeenCalledWith("acct");
-    });
-
-    it("does not throw when the state store fails", async () => {
-      store.delete.mockRejectedValue(new Error("locked"));
-
-      await expect(clearStoredSession("acct")).resolves.toBeUndefined();
-    });
-  });
-
-  describe("account keying", () => {
-    it("falls back to 'default' for a blank account id", () => {
-      expect(normalizeAccountKey("   ")).toBe("default");
-      expect(normalizeAccountKey("")).toBe("default");
-    });
-
-    it("keeps a real account id", () => {
-      expect(normalizeAccountKey(" acct ")).toBe("acct");
-    });
-  });
-
-  describe("store namespace", () => {
-    it("opens a plugin-owned namespace with a bounded entry count", async () => {
-      await readStoredSession("acct", RELAY);
-
-      expect(openKeyedStore).toHaveBeenCalledWith({
-        namespace: "kakao-talkchannel.sessions",
-        maxEntries: 100,
+      const draft = await applyMutation({
+        channels: { telegram: { accounts: { default: { botToken: "keep-me" } } } },
       });
+
+      const channels = draft.channels as Record<string, unknown>;
+      expect(channels.telegram).toEqual({ accounts: { default: { botToken: "keep-me" } } });
+    });
+
+    it("writes to the named account, not always 'default'", async () => {
+      await persistSessionToken("work", "tok-work");
+
+      const draft = await applyMutation({});
+      expect(accountIn(draft, "work").sessionToken).toBe("tok-work");
+    });
+
+    it("never asks the gateway to reload or restart", async () => {
+      await persistSessionToken("default", "tok-1");
+
+      // Restarting from inside the pairing flow would loop, and the running
+      // process already holds this token, so a reload buys nothing.
+      expect(mutateConfigFile.mock.calls[0][0].afterWrite).toEqual({
+        mode: "none",
+        reason: expect.any(String),
+      });
+    });
+
+    it("does not throw when the config write fails", async () => {
+      mutateConfigFile.mockRejectedValue(new Error("config is read-only"));
+      const log = { info: vi.fn(), warn: vi.fn() };
+
+      await expect(persistSessionToken("default", "tok-1", log)).resolves.toBeUndefined();
+      // The user has to know a restart will cost them a re-pair.
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining("Could not save the pairing"));
+    });
+  });
+
+  describe("forgetSessionToken", () => {
+    it("removes the token from the account entry", async () => {
+      await forgetSessionToken("default");
+
+      const draft = await applyMutation({
+        channels: {
+          "kakao-talkchannel": {
+            accounts: { default: { enabled: true, sessionToken: "tok-1" } },
+          },
+        },
+      });
+
+      expect(accountIn(draft)).toEqual({ enabled: true });
+    });
+
+    it("is a no-op when nothing was stored", async () => {
+      await forgetSessionToken("default");
+
+      const draft = await applyMutation({});
+      expect(accountIn(draft)).toEqual({});
+    });
+
+    it("does not throw when the config write fails", async () => {
+      mutateConfigFile.mockRejectedValue(new Error("locked"));
+
+      await expect(forgetSessionToken("default")).resolves.toBeUndefined();
     });
   });
 });
