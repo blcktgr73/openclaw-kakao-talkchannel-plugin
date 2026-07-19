@@ -4,23 +4,41 @@
 
 소요 시간 약 20분. 카카오톡 앱이 필요합니다(페어링 코드 입력).
 
-## 1차 검증에서 이미 확인된 것 (2026-07-20)
+## 검증 결과 (2026-07-20, dev VM)
 
 | 항목 | 결과 |
 |---|---|
-| `openclaw plugins registry --refresh` / `doctor` | 통과, 이슈 없음 |
+| `plugins registry --refresh` / `doctor` | 통과, 이슈 없음 |
 | `openclaw kakao --help`에 `pairing` 노출 | **통과** — `registerCli` 실증 |
-| `openclaw gateway call kakao.pairing.status` | **통과** — RPC 등록·`operator.read` 스코프 실증 |
-| 페어링 레지스트리 동작 | `state: paired`, `canReissue: true` 정상 |
-| `openclaw kakao pairing status` | **실패** — 아래 참조 |
+| `openclaw gateway call kakao.pairing.status` | **통과** — RPC 등록·`operator.read` 실증 |
+| 상태 파일 발행 | **통과** — `-rw-------`, pid 일치 |
+| `openclaw kakao pairing status` 비파괴 읽기 | **통과** |
+| **재시작 없는 재발급** | **통과** — PID 12088 전후 동일, `newSession=true` |
+| **`pairing_complete` 중복 제거 (#89)** | **통과** — `페어링 완료` 로그 1회 (이전 4회) |
+| 토큰 영속화 | **통과** |
+| 메시지 왕복 회귀 | **통과** — ping 3/3 응답 |
 
-**발견된 설계 결함**: CLI가 `runtime.gateway`로 게이트웨이를 호출하려 했으나, 그 API는
-게이트웨이 프로세스 *내부* 코드 전용입니다(`"Whether this process owns an active
-Gateway request context"`). CLI에서는 항상 거짓이라 "게이트웨이가 안 떠 있다"는
-잘못된 안내가 나왔습니다.
+미검증으로 남은 항목: §6 상태 표면 렌더링, 페어링 코드 비노출, `probe ok`(D1 실기),
+§8 릴레이 관측.
 
-**수정**: 게이트웨이가 상태를 파일로 발행하고 CLI가 읽는 방식으로 전환했습니다.
-자세한 내용은 `docs/PAIRING_OPERATIONS.md`. 아래 절차로 재검증이 필요합니다.
+### 검증 중 발견해 고친 결함 2건
+
+**① CLI가 게이트웨이를 RPC로 호출할 수 없음.** `runtime.gateway`는 게이트웨이
+프로세스 *내부* 코드 전용입니다(`"Whether this process owns an active Gateway
+request context"`). CLI에서는 항상 거짓이라 게이트웨이가 멀쩡한데도 "안 떠 있다"고
+잘못 안내했습니다. → 게이트웨이가 상태를 파일로 발행하고 CLI가 읽는 방식으로 전환
+(`docs/PAIRING_OPERATIONS.md`).
+
+**② `--json`이 파싱 불가.** `ctx.logger.info`가 모든 줄에 타임스탬프와 `[plugins]`를
+붙여 `... --json | jq .`가 실패했습니다. → 기계용 출력은 stdout으로 직행.
+
+두 결함 모두 **단위 테스트로는 잡을 수 없었습니다.** ①은 호스트 API의 실제 의미가
+타입 선언에 드러나지 않았고, ②는 테스트가 logger를 기준으로 단언해 버그에 동의하고
+있었습니다.
+
+---
+
+## 재검증이 필요할 때 (아래 절차)
 
 ---
 
@@ -360,12 +378,12 @@ curl -s -o /dev/null -w "%{http_code} //health\n" "${RELAY}/health"
 ## 결과 보고 양식
 
 ```
-[x] 2. openclaw kakao --help 에 pairing 노출          (2026-07-20 확인)
-[ ] 3. status 3회 연속 동일 출력 (비파괴)
-[ ] 3. pairing-state.json 발행, 권한 0600, pid 일치
-[ ] 4. pairing new 후 PID 동일 (재시작 없음)   ← 핵심
-[ ] 5. /pair 성공, "페어링 완료" 로그 정확히 1회
-[ ] 5. 카카오톡 대화 왕복 정상
+[x] 2. openclaw kakao --help 에 pairing 노출          (2026-07-20)
+[x] 3. status 비파괴 읽기                             (2026-07-20)
+[x] 3. pairing-state.json 발행, 0600, pid 일치        (2026-07-20)
+[x] 4. pairing new 후 PID 동일 (재시작 없음)  ← 핵심   (2026-07-20)
+[x] 5. /pair 성공, "페어링 완료" 로그 정확히 1회       (2026-07-20)
+[x] 5. 카카오톡 대화 왕복 정상 (ping 3/3)             (2026-07-20)
 [ ] 6. channels status 에 경고 렌더링
 [ ] 6. 페어링 코드가 status/doctor 에 노출되지 않음
 [ ] 6. probe ok:true
