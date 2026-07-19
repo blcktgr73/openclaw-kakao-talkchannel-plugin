@@ -162,6 +162,14 @@ export async function connectSSE(
       try {
         const decoder = new TextDecoder();
         let buffer = "";
+        // Set when the relay reports the pairing finished. The relay decides
+        // which channel a stream subscribes to (the pairing session, or the
+        // paired account) at connection time, so the new account channel only
+        // takes effect on the next connection. Reconnecting immediately closes
+        // the window where messages are published to a channel nobody is
+        // listening on. Without this, delivery waits for the relay to recycle
+        // the stream on its own.
+        let reconnectForPairing = false;
 
         while (!abortSignal.aborted) {
           const { done, value } = await reader.read();
@@ -197,9 +205,18 @@ export async function connectSSE(
               handlers.onError?.(new Error(event.data.message));
             } else if (event.event === "pairing_complete") {
               handlers.onPairingComplete?.(event.data);
+              reconnectForPairing = true;
             } else if (event.event === "pairing_expired") {
               handlers.onPairingExpired?.(event.data.reason);
             }
+          }
+
+          // Leave after the whole chunk is handled so no already-parsed event
+          // is dropped. Exiting the read loop without throwing reconnects on
+          // the next outer iteration with no backoff — the same path a normal
+          // server-side stream close takes.
+          if (reconnectForPairing) {
+            break;
           }
         }
       } finally {
