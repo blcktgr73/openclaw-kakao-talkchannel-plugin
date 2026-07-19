@@ -26,6 +26,16 @@ OpenClaw에게 말하세요:
 
 그게 끝입니다. OpenClaw가 알아서 설치합니다.
 
+### Code를 받아서 설치하는 방법
+
+npm에 publish 안 되어 있으면 GitHub에서 직접 클론 후 로컬 설치:
+
+```bash
+git clone https://github.com/blcktgr73/openclaw-kakao-talkchannel-plugin ~/kakao-plugin
+cd ~/kakao-plugin && npm install && npm run build
+openclaw plugins install -l ~/kakao-plugin
+```
+
 ---
 
 ## 사용자 가이드
