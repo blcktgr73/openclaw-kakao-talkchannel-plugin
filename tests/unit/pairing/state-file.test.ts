@@ -116,8 +116,15 @@ describe("pairing state file", () => {
       expect(isStateStale(base())).toBe(false);
     });
 
-    it("rejects a file older than the staleness window", () => {
-      expect(isStateStale(base({ updatedAt: Date.now() - 120_000 }))).toBe(true);
+    it("tolerates a quiet file while its writer is alive", () => {
+      // Publishing is event-driven plus a heartbeat; a couple of minutes of
+      // silence is normal for a stable pairing and must not read as dead.
+      expect(isStateStale(base({ updatedAt: Date.now() - 120_000 }))).toBe(false);
+    });
+
+    it("rejects a file far older than the backstop window", () => {
+      // Guards the case where a pid has been recycled onto an unrelated process.
+      expect(isStateStale(base({ updatedAt: Date.now() - 20 * 60_000 }))).toBe(true);
     });
 
     it("rejects a file whose writer is gone", () => {

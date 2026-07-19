@@ -60,16 +60,13 @@ export class GatewayNotPublishingError extends Error {
   }
 }
 
-export class StaleStateError extends Error {
-  constructor(state: PairingStateFile) {
-    const ageSeconds = Math.round((Date.now() - state.updatedAt) / 1000);
-    super(
-      `KakaoTalk pairing state is stale (last written ${ageSeconds}s ago by pid ` +
-        `${state.pid}, which is no longer running). The gateway is probably down.\n` +
-        "  Check: openclaw gateway status"
-    );
-    this.name = "StaleStateError";
-  }
+export function staleWarning(state: PairingStateFile): string {
+  const ageSeconds = Math.round((Date.now() - state.updatedAt) / 1000);
+  return (
+    `warning: this pairing state may be out of date — last written ${ageSeconds}s ` +
+    `ago by pid ${state.pid}, which no longer appears to be running.\n` +
+    "  Check: openclaw gateway status"
+  );
 }
 
 function selectAccount(
@@ -82,12 +79,18 @@ function selectAccount(
   return state.accounts[0] ?? null;
 }
 
-/** Read published state, rejecting anything a dead gateway left behind. */
-function readLiveState(): PairingStateFile {
+/**
+ * Read published state.
+ *
+ * Staleness is reported, not enforced. An earlier version refused to proceed on
+ * a stale file; that detection then misfired on a healthy gateway and blocked a
+ * legitimate operation. Showing what we have, clearly flagged, is more useful to
+ * an operator than refusing — especially since the detection can be wrong.
+ */
+function readState(): { state: PairingStateFile; stale: boolean } {
   const state = readPairingState();
   if (!state) throw new GatewayNotPublishingError();
-  if (isStateStale(state)) throw new StaleStateError(state);
-  return state;
+  return { state, stale: isStateStale(state) };
 }
 
 function parseTimeoutSeconds(raw: string | undefined): number {
@@ -207,13 +210,14 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
       .option("--account <id>", "Account id (defaults to the only running account)")
       .option("--json", "Emit raw JSON")
       .action(async (options: CliOptions) => {
-        const state = readLiveState();
+        const { state, stale } = readState();
         const snapshot = selectAccount(state, options.account);
 
         if (options.json) {
-          writeJson({ accounts: state.accounts, account: snapshot });
+          writeJson({ accounts: state.accounts, account: snapshot, stale });
           return;
         }
+        if (stale) ctx.logger.warn(staleWarning(state));
         ctx.logger.info(formatSnapshot(snapshot));
       });
 
@@ -224,8 +228,12 @@ export function registerPairingCli(api: OpenClawPluginApi): void {
       .option("--json", "Emit raw JSON")
       .option("--timeout <seconds>", "How long to wait for the relay", "30")
       .action(async (options: CliOptions) => {
-        // Fail fast with a clear reason if nothing is publishing.
-        readLiveState();
+        // Only a missing file is fatal — there is then nothing to ask. A stale
+        // file is reported and the request still goes out: if the gateway is in
+        // fact alive it will pick it up, and if it is not, the wait below fails
+        // with a message that says so.
+        const { state, stale } = readState();
+        if (stale && !options.json) ctx.logger.warn(staleWarning(state));
 
         const timeoutSeconds = parseTimeoutSeconds(options.timeout);
         const request = writePairingRequest(options.account, timeoutSeconds * 1000);

@@ -23,6 +23,15 @@ import {
 
 export const REQUEST_POLL_INTERVAL_MS = 1000;
 
+/**
+ * How often the state file is refreshed even when nothing has changed.
+ *
+ * Publishing is otherwise event-driven, so a stable paired account would never
+ * rewrite the file and its `updatedAt` would age indefinitely. The CLI's
+ * age backstop needs a heartbeat to mean anything.
+ */
+export const HEARTBEAT_INTERVAL_MS = 30_000;
+
 export interface PublisherLog {
   info?: (msg: string) => void;
   warn?: (msg: string) => void;
@@ -68,14 +77,18 @@ export function startPairingPublisher(log?: PublisherLog): () => void {
   const timer = setInterval(() => {
     void pollRequest(log, publish);
   }, REQUEST_POLL_INTERVAL_MS);
-  // Never hold the process open for this.
+  // Never hold the process open for these.
   timer.unref?.();
+
+  const heartbeat = setInterval(publish, HEARTBEAT_INTERVAL_MS);
+  heartbeat.unref?.();
 
   const handle: PublisherHandle & { refCount: number } = {
     refCount: 1,
     stop: () => {
       unsubscribe();
       clearInterval(timer);
+      clearInterval(heartbeat);
       clearPairingState();
       clearPairingRequest();
     },

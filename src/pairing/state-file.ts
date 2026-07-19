@@ -25,8 +25,17 @@ import type { PairingSnapshot } from "./registry.js";
 export const STATE_FILE = "pairing-state.json";
 export const REQUEST_FILE = "pairing-request.json";
 
-/** A state file older than this is reported as stale rather than trusted. */
-export const STATE_STALE_AFTER_MS = 60_000;
+/**
+ * Age at which a state file is distrusted *even though* its writer still looks
+ * alive.
+ *
+ * This is a backstop, not the primary signal. The gateway republishes on a
+ * heartbeat (see `publisher.ts`), so a healthy file is refreshed regularly no
+ * matter how long the pairing state itself stays unchanged. An earlier version
+ * used a 60s window against event-driven writes only, which made every stable
+ * paired account look dead after a minute.
+ */
+export const STATE_STALE_AFTER_MS = 10 * 60_000;
 
 export interface PairingStateFile {
   /** Gateway process that wrote this. Lets the CLI detect a dead writer. */
@@ -122,10 +131,15 @@ function removeQuietly(target: string): void {
   }
 }
 
-/** True when the writing gateway looks gone or the file has gone quiet. */
+/**
+ * True when the file cannot be trusted to describe a live gateway.
+ *
+ * Liveness of the writing process is the primary signal; age is only a backstop
+ * for the case where a pid has been recycled onto an unrelated process.
+ */
 export function isStateStale(state: PairingStateFile, now = Date.now()): boolean {
-  if (now - state.updatedAt > STATE_STALE_AFTER_MS) return true;
-  return !isProcessAlive(state.pid);
+  if (!isProcessAlive(state.pid)) return true;
+  return now - state.updatedAt > STATE_STALE_AFTER_MS;
 }
 
 function isProcessAlive(pid: number): boolean {

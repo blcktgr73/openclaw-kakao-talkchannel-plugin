@@ -5,7 +5,6 @@ import path from "node:path";
 import {
   CLI_COMMAND_NAME,
   GatewayNotPublishingError,
-  StaleStateError,
   formatSnapshot,
   registerPairingCli,
 } from "../../../src/pairing/cli";
@@ -48,6 +47,16 @@ function makeProgram() {
   }
 
   return { program: makeCommand([]), actions };
+}
+
+/** State whose writer pid can never be alive, so it always reads as stale. */
+function writeStaleState() {
+  const dir = resolveStateDir();
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "pairing-state.json"),
+    JSON.stringify({ pid: 0, updatedAt: Date.now(), accounts: [snapshot()] })
+  );
 }
 
 function registerAndGetActions() {
@@ -214,21 +223,36 @@ describe("pairing CLI", () => {
       );
     });
 
-    it("rejects state left behind by a dead gateway", async () => {
-      // A pid that cannot be alive, so the staleness check trips regardless of
-      // how recently the file was written.
-      const state = {
-        pid: 0,
-        updatedAt: Date.now(),
-        accounts: [snapshot()],
-      };
-      const dir = resolveStateDir();
-      fs.mkdirSync(dir, { recursive: true });
-      fs.writeFileSync(path.join(dir, "pairing-state.json"), JSON.stringify(state));
+    it("warns about stale state but still shows it", async () => {
+      // Staleness detection has been wrong before, so it must not be able to
+      // block an operator from seeing what is actually on disk.
+      writeStaleState();
+      const { actions, logger } = registerAndGetActions();
 
+      await actions.get("kakao pairing status")!({});
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("may be out of date"));
+      expect(logger.info).toHaveBeenCalledWith(expect.stringContaining("CODE-1234"));
+    });
+
+    it("marks staleness in JSON output", async () => {
+      writeStaleState();
       const { actions } = registerAndGetActions();
 
-      await expect(actions.get("kakao pairing status")!({})).rejects.toThrow(StaleStateError);
+      const written: string[] = [];
+      const spy = vi
+        .spyOn(process.stdout, "write")
+        .mockImplementation((chunk: string | Uint8Array) => {
+          written.push(String(chunk));
+          return true;
+        });
+      try {
+        await actions.get("kakao pairing status")!({ json: true });
+      } finally {
+        spy.mockRestore();
+      }
+
+      expect(JSON.parse(written.join("")).stale).toBe(true);
     });
   });
 
