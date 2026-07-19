@@ -7,6 +7,94 @@
   "channels": [
     "kakao-talkchannel"
   ],
+  "channelConfigs": {
+    "kakao-talkchannel": {
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "accounts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Enable this account"
+                },
+                "channelId": {
+                  "type": "string",
+                  "description": "Channel identifier (optional, for display only)"
+                },
+                "relayUrl": {
+                  "type": "string",
+                  "default": "https://k.tess.dev/",
+                  "description": "Relay server URL"
+                },
+                "relayToken": {
+                  "type": "string",
+                  "description": "Relay authentication token (account-based auth)"
+                },
+                "sessionToken": {
+                  "type": "string",
+                  "description": "Session token (pairing-based auth)"
+                },
+                "dmPolicy": {
+                  "type": "string",
+                  "enum": [
+                    "pairing",
+                    "allowlist",
+                    "open",
+                    "disabled"
+                  ],
+                  "default": "pairing",
+                  "description": "DM policy for unauthorized users"
+                },
+                "responsePrefix": {
+                  "type": "string",
+                  "description": "Prefix prepended to agent responses by OpenClaw core"
+                },
+                "allowFrom": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Allowed user IDs (when dmPolicy is allowlist)"
+                }
+              }
+            }
+          }
+        }
+      },
+      "uiHints": {
+        "accounts.*.relayToken": {
+          "label": "Relay Token",
+          "sensitive": true,
+          "placeholder": "relay_xxx..."
+        },
+        "accounts.*.sessionToken": {
+          "label": "Session Token",
+          "sensitive": true
+        },
+        "accounts.*.relayUrl": {
+          "label": "Relay Server URL",
+          "placeholder": "https://k.tess.dev/"
+        },
+        "accounts.*.channelId": {
+          "label": "Channel ID",
+          "placeholder": "@example"
+        },
+        "accounts.*.dmPolicy": {
+          "label": "DM Policy"
+        },
+        "accounts.*.responsePrefix": {
+          "label": "Response Prefix",
+          "placeholder": "[카카오] "
+        }
+      }
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
